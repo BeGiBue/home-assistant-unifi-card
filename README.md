@@ -13,6 +13,10 @@ Gateway → Switches → Access Points / Kameras, mit Geräte-Bildern sowie **Da
 
 ### HACS (empfohlen)
 
+[![Open your Home Assistant instance and open this repository in HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=BeGiBue&repository=unifi-custom-card&category=plugin)
+
+Per Klick auf den Button (öffnet die Repository-Seite in deiner Home-Assistant-Instanz) oder manuell:
+
 1. HACS → Frontend → ⋮ → *Benutzerdefinierte Repositories*
 2. `https://github.com/BeGiBue/unifi-custom-card`, Kategorie **Dashboard** hinzufügen
 3. „UniFi Network Card“ installieren, Browser-Cache leeren
