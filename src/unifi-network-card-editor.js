@@ -1,4 +1,5 @@
 import { localize } from "./localize.js";
+import { collectUnifiDevices, typeOf, TYPE_ORDER } from "./utils.js";
 
 /**
  * Visueller Editor auf Basis von <ha-form>: alle Einstellungen laufen über
@@ -34,8 +35,26 @@ class UnifiNetworkCardEditor extends HTMLElement {
     this._sync(false);
   }
 
+  /**
+   * Die Geräteauswahl als Dropdown mit eigener Beschriftung. Der HA-Geräte-Selektor zeigt seine
+   * Beschriftung im leeren Zustand nicht an, zwei davon wären nicht zu unterscheiden.
+   */
+  _deviceOptions() {
+    const { list } = collectUnifiDevices(this._hass, this._config.config_entry);
+    return list
+      .map((d) => ({
+        value: d.id,
+        label: `${d.name_by_user || d.name || d.model}${d.model ? ` (${d.model})` : ""}`,
+        rank: TYPE_ORDER.indexOf(typeOf(d.model || "")),
+      }))
+      .sort((a, b) => a.rank - b.rank || a.label.localeCompare(b.label))
+      .map(({ value, label }) => ({ value, label }));
+  }
+
   _schema() {
     const t = localize(this._hass);
+    const deviceOptions = this._deviceOptions();
+    this._deviceSig = JSON.stringify(deviceOptions);
     return [
       { name: "title", selector: { text: {} } },
       { name: "config_entry", selector: { config_entry: { integration: "unifi" } } },
@@ -93,8 +112,8 @@ class UnifiNetworkCardEditor extends HTMLElement {
             label_field: "name",
             description_field: "device",
             fields: {
-              device: { label: t("e_device"), required: true, selector: { device: { integration: "unifi" } } },
-              parent: { label: t("e_parent"), selector: { device: { integration: "unifi" } } },
+              device: { label: t("e_device"), required: true, selector: { select: { mode: "dropdown", options: deviceOptions } } },
+              parent: { label: t("e_parent"), selector: { select: { mode: "dropdown", options: deviceOptions } } },
               name: { label: t("e_name"), selector: { text: {} } },
               image: { label: t("e_image"), selector: { text: {} } },
               switch_port: { label: t("e_switch_port"), selector: { number: { min: 1, max: 100, mode: "box" } } },
@@ -165,7 +184,10 @@ class UnifiNetworkCardEditor extends HTMLElement {
     // Schema nur bei Erstaufbau oder Sprachwechsel neu setzen. Ein neues Schema-Array
     // lässt ha-form alles neu rendern (Scroll-Position und aufgeklappte Bereiche gehen verloren).
     const lang = this._hass.locale?.language || this._hass.language;
-    if (firstTime || lang !== this._lang) {
+    // Auch neu setzen, wenn sich die Geräteliste ändert (selten) – nicht bei jedem Zustands-Update.
+    const devicesChanged = this._devRef !== this._hass.devices && JSON.stringify(this._deviceOptions()) !== this._deviceSig;
+    this._devRef = this._hass.devices;
+    if (firstTime || lang !== this._lang || devicesChanged) {
       this._lang = lang;
       this._form.schema = this._schema();
     }

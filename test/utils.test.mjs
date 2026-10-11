@@ -11,6 +11,7 @@ import {
   buildTree,
   resolveParents,
   isNetworkDevice,
+  collectUnifiDevices,
 } from "../src/utils.js";
 
 test("typeOf erkennt UniFi-Modelle", () => {
@@ -121,4 +122,25 @@ test("resolveParents: ohne Automatik bleiben Geraete ohne Eltern, Zyklen werden 
   assert.equal(flat.find((d) => d.id === "sw").parent, null);
   const cyc = resolveParents([dev("a", "ap", { cfgParent: "b" }), dev("b", "ap", { cfgParent: "a" })], false);
   assert.ok(cyc.some((d) => d.parent === null));
+});
+
+test("collectUnifiDevices filtert auf UniFi-Netzwerkgeraete", () => {
+  const hass = {
+    devices: {
+      a: { id: "a", name: "Switch", manufacturer: "Ubiquiti", model: "US16P150", config_entries: ["e1"] },
+      b: { id: "b", name: "SSID", manufacturer: "Ubiquiti", model: "UniFi WLAN", config_entries: ["e1"] },
+      c: { id: "c", name: "Lampe", manufacturer: "Philips", model: "Hue", config_entries: ["e2"] },
+      d: { id: "d", name: "AP", manufacturer: "Ubiquiti", model: "U6-Pro", config_entries: ["e2"] },
+    },
+    entities: {
+      "sensor.a": { entity_id: "sensor.a", device_id: "a", platform: "unifi" },
+      "sensor.b": { entity_id: "sensor.b", device_id: "b", platform: "unifi" },
+      "light.c": { entity_id: "light.c", device_id: "c", platform: "hue" },
+      "sensor.d": { entity_id: "sensor.d", device_id: "d", platform: "unifi" },
+    },
+  };
+  assert.deepEqual(collectUnifiDevices(hass).list.map((d) => d.id), ["a", "d"]);
+  assert.deepEqual(collectUnifiDevices(hass, "e2").list.map((d) => d.id), ["d"]);
+  assert.deepEqual(collectUnifiDevices(hass).byDevice.a.map((e) => e.entity_id), ["sensor.a"]);
+  assert.deepEqual(collectUnifiDevices(undefined).list, []);
 });

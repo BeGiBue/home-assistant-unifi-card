@@ -11,7 +11,7 @@ import {
   resolveColor,
   buildTree,
   resolveParents,
-  isNetworkDevice,
+  collectUnifiDevices,
 } from "./utils.js";
 import "./unifi-network-card-editor.js";
 
@@ -90,20 +90,7 @@ class UnifiNetworkCard extends HTMLElement {
   }
 
   _collectDevices() {
-    const hass = this._hass;
-    const ents = Object.values(hass.entities || {});
-    const byDevice = {};
-    ents.forEach((e) => {
-      if (e.device_id) (byDevice[e.device_id] ||= []).push(e);
-    });
-    const entry = this._config.config_entry;
-    const list = Object.values(hass.devices || {}).filter((d) => {
-      const own = byDevice[d.id] || [];
-      if (!own.some((e) => e.platform === "unifi") || !isNetworkDevice(d)) return false;
-      if (entry && !(d.config_entries || []).includes(entry)) return false;
-      const ubnt = /ubiquiti|ubnt|unifi/i.test(d.manufacturer || "");
-      return ubnt || typeOf(d.model || "") !== "other";
-    });
+    const { list, byDevice } = collectUnifiDevices(this._hass, this._config.config_entry);
     const known = new Set(list.map((d) => d.id));
     const base = list.map((d) => {
       const cfg = this._overrides(d.id);

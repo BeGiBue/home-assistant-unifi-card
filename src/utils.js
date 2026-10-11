@@ -161,3 +161,23 @@ export function resolveParents(devices, auto = true) {
 
   return devices.map((d) => ({ ...d, parent: parentOf[d.id] }));
 }
+
+/**
+ * Alle UniFi-Netzwerkgeräte aus der Geräte-/Entitäts-Registry von Home Assistant
+ * (`hass.devices` / `hass.entities`, auch für Nicht-Administratoren verfügbar).
+ * Liefert die Geräteliste und die Entitäten pro Gerät.
+ */
+export function collectUnifiDevices(hass, configEntry) {
+  const byDevice = {};
+  Object.values(hass?.entities || {}).forEach((e) => {
+    if (e.device_id) (byDevice[e.device_id] ||= []).push(e);
+  });
+  const list = Object.values(hass?.devices || {}).filter((d) => {
+    const own = byDevice[d.id] || [];
+    if (!own.some((e) => e.platform === "unifi") || !isNetworkDevice(d)) return false;
+    if (configEntry && !(d.config_entries || []).includes(configEntry)) return false;
+    const ubnt = /ubiquiti|ubnt|unifi/i.test(d.manufacturer || "");
+    return ubnt || typeOf(d.model || "") !== "other";
+  });
+  return { list, byDevice };
+}
