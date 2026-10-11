@@ -9,6 +9,8 @@ import {
   numericState,
   resolveColor,
   buildTree,
+  resolveParents,
+  isNetworkDevice,
 } from "../src/utils.js";
 
 test("typeOf erkennt UniFi-Modelle", () => {
@@ -16,6 +18,8 @@ test("typeOf erkennt UniFi-Modelle", () => {
   assert.equal(typeOf("UDR"), "gateway");
   assert.equal(typeOf("USW-Pro-24-PoE"), "switch");
   assert.equal(typeOf("US-8-150W"), "switch");
+  assert.equal(typeOf("US16P150"), "switch");
+  assert.equal(typeOf("US8P60"), "switch");
   assert.equal(typeOf("U6-Pro"), "ap");
   assert.equal(typeOf("U7-Pro"), "ap");
   assert.equal(typeOf("UVC-G4-Doorbell"), "camera");
@@ -82,4 +86,39 @@ test("buildTree ordnet nach Elternbeziehung", () => {
   assert.deepEqual(roots.map((d) => d.id), ["gw", "orphan"]);
   assert.deepEqual(children.gw.map((d) => d.id), ["sw"]);
   assert.deepEqual(children.sw.map((d) => d.id), ["ap"]);
+});
+
+test("isNetworkDevice blendet WLAN-/Controller-Einträge aus", () => {
+  assert.equal(isNetworkDevice({ model: "UniFi WLAN" }), false);
+  assert.equal(isNetworkDevice({ model: "UniFi Network" }), false);
+  assert.equal(isNetworkDevice({ model: "U6-Pro", entry_type: "service" }), false);
+  assert.equal(isNetworkDevice({ model: "US16P150" }), true);
+});
+
+const dev = (id, type, extra = {}) => ({ id, name: id, type, viaParent: null, cfgParent: null, ...extra });
+
+test("resolveParents: Automatik haengt Switches ans Gateway und APs an den einzigen Switch", () => {
+  const out = resolveParents([dev("gw", "gateway"), dev("sw", "switch"), dev("ap", "ap"), dev("cam", "camera")]);
+  const p = Object.fromEntries(out.map((d) => [d.id, d.parent]));
+  assert.deepEqual(p, { gw: null, sw: "gw", ap: "sw", cam: "sw" });
+});
+
+test("resolveParents: mehrere Switches -> APs ans Gateway, explizite Zuordnung gewinnt", () => {
+  const out = resolveParents([
+    dev("gw", "gateway"),
+    dev("s1", "switch"),
+    dev("s2", "switch"),
+    dev("a1", "ap"),
+    dev("a2", "ap", { cfgParent: "s2" }),
+    dev("a3", "ap", { viaParent: "s1" }),
+  ]);
+  const p = Object.fromEntries(out.map((d) => [d.id, d.parent]));
+  assert.deepEqual(p, { gw: null, s1: "gw", s2: "gw", a1: "gw", a2: "s2", a3: "s1" });
+});
+
+test("resolveParents: ohne Automatik bleiben Geraete ohne Eltern, Zyklen werden aufgeloest", () => {
+  const flat = resolveParents([dev("gw", "gateway"), dev("sw", "switch")], false);
+  assert.equal(flat.find((d) => d.id === "sw").parent, null);
+  const cyc = resolveParents([dev("a", "ap", { cfgParent: "b" }), dev("b", "ap", { cfgParent: "a" })], false);
+  assert.ok(cyc.some((d) => d.parent === null));
 });

@@ -4,7 +4,7 @@
 
 export const TYPE_RULES = [
   ["gateway", /^(UDM|UDR|UXG|UCG|UDW|USG|UDMA|EFG|UCK|UNVR)/i],
-  ["switch", /^(USW|US-|USL|USM|ECS|Flex|Switch)/i],
+  ["switch", /^(USW|US-|US\d|USL|USM|USF|ECS|Flex|Switch)/i],
   ["camera", /^(UVC|G3|G4|G5|G6|AI ?Port|Camera|UP-?Cam)/i],
   ["phone", /^(UP-|UTP|Talk)/i],
   ["access", /^(UA-|Access|UAH)/i],
@@ -12,6 +12,16 @@ export const TYPE_RULES = [
 ];
 
 export const TYPE_ORDER = ["gateway", "switch", "ap", "camera", "phone", "access", "other"];
+
+/**
+ * Die UniFi-Integration legt neben echten Geräten auch Dienst-Einträge an
+ * (z. B. WLAN-SSIDs mit Modell "UniFi WLAN" oder den Controller). Die gehören nicht in die Topologie.
+ */
+export function isNetworkDevice(device) {
+  if (!device) return false;
+  if (device.entry_type === "service") return false;
+  return !/^UniFi\s*(WLAN|Network|Protect|Client|Controller)/i.test(device.model || "");
+}
 
 /** Modellname -> Gerätetyp */
 export function typeOf(model = "") {
@@ -108,4 +118,46 @@ export function buildTree(devices) {
   Object.values(children).forEach((list) => list.sort(sortFn));
   const roots = devices.filter((d) => !d.parent || !ids.has(d.parent)).sort(sortFn);
   return { roots, children };
+}
+
+/**
+ * Bestimmt das übergeordnete Gerät jedes Geräts.
+ * Reihenfolge: 1. in der Karte gesetzt (`cfgParent`), 2. aus der Geräte-Registry (`viaParent`),
+ * 3. wenn `auto` aktiv ist: Switches hängen am Gateway, alle anderen am einzigen Switch
+ *    (gibt es mehrere Switches, hängen sie am Gateway und können per `parent` zugeordnet werden).
+ */
+export function resolveParents(devices, auto = true) {
+  const byId = Object.fromEntries(devices.map((d) => [d.id, d]));
+  const valid = (id, self) => id && id !== self && byId[id];
+  const parentOf = {};
+  devices.forEach((d) => {
+    parentOf[d.id] = valid(d.cfgParent, d.id) ? d.cfgParent : valid(d.viaParent, d.id) ? d.viaParent : null;
+  });
+
+  if (auto) {
+    const gateway = devices.find((d) => d.type === "gateway");
+    const switches = devices.filter((d) => d.type === "switch");
+    devices.forEach((d) => {
+      if (parentOf[d.id] || d.type === "gateway") return;
+      if (d.type === "switch") parentOf[d.id] = gateway ? gateway.id : null;
+      else if (switches.length === 1) parentOf[d.id] = switches[0].id;
+      else parentOf[d.id] = gateway ? gateway.id : null;
+    });
+  }
+
+  // Zyklen auflösen (z. B. A -> B -> A durch falsche Konfiguration)
+  devices.forEach((d) => {
+    const seen = new Set([d.id]);
+    let cur = parentOf[d.id];
+    while (cur) {
+      if (seen.has(cur)) {
+        parentOf[d.id] = null;
+        break;
+      }
+      seen.add(cur);
+      cur = parentOf[cur];
+    }
+  });
+
+  return devices.map((d) => ({ ...d, parent: parentOf[d.id] }));
 }

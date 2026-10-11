@@ -10,6 +10,8 @@ import {
   numericState,
   resolveColor,
   buildTree,
+  resolveParents,
+  isNetworkDevice,
 } from "./utils.js";
 import "./unifi-network-card-editor.js";
 
@@ -59,6 +61,7 @@ class UnifiNetworkCard extends HTMLElement {
       animate_flows: true,
       show_summary: true,
       show_legend: true,
+      auto_parent: true,
       devices: [],
       ...config,
     };
@@ -96,13 +99,13 @@ class UnifiNetworkCard extends HTMLElement {
     const entry = this._config.config_entry;
     const list = Object.values(hass.devices || {}).filter((d) => {
       const own = byDevice[d.id] || [];
-      if (!own.some((e) => e.platform === "unifi")) return false;
+      if (!own.some((e) => e.platform === "unifi") || !isNetworkDevice(d)) return false;
       if (entry && !(d.config_entries || []).includes(entry)) return false;
       const ubnt = /ubiquiti|ubnt|unifi/i.test(d.manufacturer || "");
       return ubnt || typeOf(d.model || "") !== "other";
     });
-    const byId = new Set(list.map((d) => d.id));
-    this._devices = list.map((d) => {
+    const known = new Set(list.map((d) => d.id));
+    const base = list.map((d) => {
       const cfg = this._overrides(d.id);
       const model = d.model || "";
       return {
@@ -110,12 +113,14 @@ class UnifiNetworkCard extends HTMLElement {
         name: cfg.name || d.name_by_user || d.name || model,
         model,
         sw: d.sw_version || "",
-        parent: d.via_device_id && byId.has(d.via_device_id) ? d.via_device_id : null,
+        viaParent: d.via_device_id && known.has(d.via_device_id) ? d.via_device_id : null,
+        cfgParent: cfg.parent || null,
         type: typeOf(model),
         entityIds: (byDevice[d.id] || []).map((e) => e.entity_id),
         cfg,
       };
     });
+    this._devices = resolveParents(base, this._config.auto_parent !== false);
   }
 
   _status(d) {

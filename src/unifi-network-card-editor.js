@@ -60,6 +60,7 @@ class UnifiNetworkCardEditor extends HTMLElement {
           { name: "animate_flows", selector: { boolean: {} } },
           { name: "show_summary", selector: { boolean: {} } },
           { name: "show_legend", selector: { boolean: {} } },
+          { name: "auto_parent", selector: { boolean: {} } },
         ],
       },
       {
@@ -93,6 +94,7 @@ class UnifiNetworkCardEditor extends HTMLElement {
             description_field: "device",
             fields: {
               device: { label: t("e_device"), required: true, selector: { device: { integration: "unifi" } } },
+              parent: { label: t("e_parent"), selector: { device: { integration: "unifi" } } },
               name: { label: t("e_name"), selector: { text: {} } },
               image: { label: t("e_image"), selector: { text: {} } },
               switch_port: { label: t("e_switch_port"), selector: { number: { min: 1, max: 100, mode: "box" } } },
@@ -127,6 +129,7 @@ class UnifiNetworkCardEditor extends HTMLElement {
       animate_flows: "e_animate",
       show_summary: "e_show_summary",
       show_legend: "e_show_legend",
+      auto_parent: "e_auto_parent",
       poe_color: "e_poe_color",
       down_color: "e_down_color",
       up_color: "e_up_color",
@@ -174,6 +177,7 @@ class UnifiNetworkCardEditor extends HTMLElement {
         animate_flows: true,
         show_summary: true,
         show_legend: true,
+        auto_parent: true,
         ...this._config,
       };
     }

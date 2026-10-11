@@ -41,6 +41,7 @@ show_flows: true
 animate_flows: true
 show_summary: true
 show_legend: true
+auto_parent: true       # Hierarchie automatisch ableiten
 config_entry: 01H…      # optional: nur einen UniFi-Controller anzeigen
 image_base: /local/unifi/   # optional, Datei: {Modell}.png
 poe_color: orange       # optional, sonst --warning-color
@@ -72,12 +73,26 @@ devices:
 | `animate_flows` | `true` | Linien animieren (respektiert „Bewegung reduzieren“) |
 | `show_summary` | `true` | Zusammenfassung im Kopf (Online, PoE, Down/Up) |
 | `show_legend` | `true` | Legende unter der Topologie |
+| `auto_parent` | `true` | Hierarchie automatisch ableiten, wenn Home Assistant sie nicht liefert (siehe unten) |
 | `image_base` | – | Ordner mit Geräte-Bildern, Dateiname `{Modell}.png` (Leerzeichen → `-`) |
 | `poe_color` / `down_color` / `up_color` | Theme | Farbe (HA-Farbname, Hex oder `rgb()`) |
 | `devices[]` | – | Einstellungen pro Gerät, siehe unten |
 
-`devices[]`-Felder: `device` (Pflicht), `name`, `image`, `switch_port`, `poe_entity`, `down_entity`,
+`devices[]`-Felder: `device` (Pflicht), `name`, `image`, `parent`, `switch_port`, `poe_entity`, `down_entity`,
 `up_entity`, `poe_budget`.
+
+## Hierarchie (Baumansicht)
+
+Die Karte nimmt die Uplink-Beziehung aus der Geräte-Registry (`via_device`). Liefert die UniFi-Integration
+sie nicht, würden alle Geräte nebeneinander stehen. Deshalb gilt:
+
+1. `devices[].parent` (im Editor: „Übergeordnetes Gerät (Uplink)“) hat Vorrang.
+2. Sonst die Beziehung aus der Geräte-Registry.
+3. Sonst, bei `auto_parent: true`: Switches hängen am Gateway, alle anderen Geräte am einzigen Switch.
+   Gibt es mehrere Switches, hängen Access Points und Kameras am Gateway, bis du ihnen per `parent`
+   den richtigen Switch zuweist.
+
+Dienst-Einträge der Integration (WLAN-SSIDs, Controller) werden nicht angezeigt.
 
 ## Wie kommen die Flüsse zustande?
 
