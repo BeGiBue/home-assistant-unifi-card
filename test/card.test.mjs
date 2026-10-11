@@ -88,3 +88,51 @@ test("Offline-Geraet bekommt keinen Fluss", () => {
   card.hass = { ...hass, states: withIds({ ...hass.states, "device_tracker.ap": state("not_home") }) };
   assert.match(card.shadowRoot.innerHTML, /kein Link/);
 });
+
+const withClients = {
+  ...hass,
+  entities: { ...hass.entities, "sensor.ap_clients": ent("sensor.ap_clients", "ap"), "sensor.sw_port_6_poe_power": ent("sensor.sw_port_6_poe_power", "sw") },
+  states: withIds({
+    ...hass.states,
+    "sensor.ap_clients": state("14", { friendly_name: "AP Büro Clients" }),
+    "sensor.sw_port_6_poe_power": state("4.4", { friendly_name: "Switch Keller Port 6 PoE Power", device_class: "power", unit_of_measurement: "W" }),
+    "binary_sensor.nas": state("on"),
+  }),
+};
+
+test("zeigt die Anzahl verbundener Geraete am Access Point", () => {
+  const card = new Card();
+  card.setConfig({});
+  card.hass = withClients;
+  assert.match(card.shadowRoot.innerHTML, /class="cl"[^>]*>[^<]*<svg[^>]*>.*?<\/svg> 14/s);
+});
+
+test("Anzahl verbundener Geraete laesst sich abschalten oder per Sensor vorgeben", () => {
+  const off = new Card();
+  off.setConfig({ show_clients: false });
+  off.hass = withClients;
+  assert.doesNotMatch(off.shadowRoot.innerHTML, /class="cl"/);
+
+  const manual = new Card();
+  manual.setConfig({ devices: [{ device: "sw", clients_entity: "sensor.ap_clients" }] });
+  manual.hass = withClients;
+  assert.equal((manual.shadowRoot.innerHTML.match(/class="cl"/g) || []).length, 2); // AP (auto) + Switch (manuell)
+});
+
+test("externe Geraete erscheinen am gewaehlten Switch mit Status und PoE", () => {
+  const card = new Card();
+  card.setConfig({
+    external_devices: [
+      { name: "NAS <Keller>", model: "Synology", icon: "mdi:nas", parent: "sw", switch_port: 6, entity: "binary_sensor.nas" },
+      { name: "Drucker", parent: "sw", entity: "binary_sensor.printer" },
+    ],
+  });
+  card.hass = withClients;
+  const html = card.shadowRoot.innerHTML;
+  assert.match(html, /NAS &lt;Keller&gt;/);
+  assert.match(html, /<ha-icon icon="mdi:nas">/);
+  assert.match(html, /tile on ext/);
+  assert.match(html, /4,4 W/); // PoE-Leistung von Port 6 des Switches
+  assert.match(html, /tile off ext/); // Drucker: Status-Entitaet existiert nicht -> offline
+  assert.match(html, /4\/5 Online/);
+});

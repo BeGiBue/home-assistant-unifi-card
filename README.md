@@ -42,6 +42,7 @@ animate_flows: true
 show_summary: true
 show_legend: true
 auto_parent: true       # Hierarchie automatisch ableiten
+show_clients: true      # Anzahl verbundener Geräte an Switches/APs
 config_entry: 01H…      # optional: nur einen UniFi-Controller anzeigen
 image_base: /local/unifi/   # optional, Datei: {Modell}.png
 poe_color: orange       # optional, sonst --warning-color
@@ -73,13 +74,41 @@ devices:
 | `animate_flows` | `true` | Linien animieren (respektiert „Bewegung reduzieren“) |
 | `show_summary` | `true` | Zusammenfassung im Kopf (Online, PoE, Down/Up) |
 | `show_legend` | `true` | Legende unter der Topologie |
+| `show_clients` | `true` | Anzahl verbundener Geräte an Access Points und Switches anzeigen |
+| `external_devices[]` | – | Geräte außerhalb von UniFi manuell anzeigen (siehe unten) |
 | `auto_parent` | `true` | Hierarchie automatisch ableiten, wenn Home Assistant sie nicht liefert (siehe unten) |
 | `image_base` | – | Ordner mit Geräte-Bildern, Dateiname `{Modell}.png` (Leerzeichen → `-`) |
 | `poe_color` / `down_color` / `up_color` | Theme | Farbe (HA-Farbname, Hex oder `rgb()`) |
 | `devices[]` | – | Einstellungen pro Gerät, siehe unten |
 
 `devices[]`-Felder: `device` (Pflicht), `name`, `image`, `parent`, `switch_port`, `poe_entity`, `down_entity`,
-`up_entity`, `poe_budget`.
+`up_entity`, `poe_budget`, `clients_entity`.
+
+## Verbundene Geräte
+
+An Access Points und Switches zeigt die Karte die Anzahl verbundener Geräte (Personen-Symbol), wenn die
+UniFi-Integration dafür einen Sensor liefert (Name enthält „Clients“, z. B. `sensor.ap_buero_clients`).
+Fehlt er oder soll ein anderer Sensor gelten, wählst du ihn pro Gerät unter `devices[].clients_entity`
+(auch ein Template-Sensor ist möglich, z. B. für zusammengefasste Verbindungen). Abschalten mit
+`show_clients: false`.
+
+## Externe Geräte
+
+Geräte, die nicht in UniFi vorkommen (NAS, Drucker, Server, Smart-Home-Bridge …), legst du unter
+`external_devices` an. Sie hängen am gewählten UniFi-Gerät und erscheinen mit gestricheltem Rand:
+
+```yaml
+external_devices:
+  - name: NAS
+    model: Synology DS923+
+    icon: mdi:nas              # beliebiges Home-Assistant-Symbol (oder `image:` mit URL)
+    parent: 3f2a…              # UniFi-Gerät (im Editor per Auswahl)
+    switch_port: 6             # Port am übergeordneten Gerät -> PoE/Daten wie bei UniFi-Geräten
+    entity: binary_sensor.nas_online   # optional: Status (on/home/Zahl = online)
+```
+
+Ohne `entity` gilt das Gerät als online. `poe_entity`, `down_entity` und `up_entity` funktionieren wie bei
+UniFi-Geräten. Ohne `parent` ordnet die Automatik das Gerät wie einen Access Point ein.
 
 ## Hierarchie (Baumansicht)
 

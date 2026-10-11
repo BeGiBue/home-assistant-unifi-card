@@ -11,7 +11,7 @@ export const TYPE_RULES = [
   ["ap", /^(U6|U7|UAP|UWB|UAL|UK|E7|U5|nano|AC-|BeaconHD|FlexHD|IW|Mesh|AP)/i],
 ];
 
-export const TYPE_ORDER = ["gateway", "switch", "ap", "camera", "phone", "access", "other"];
+export const TYPE_ORDER = ["gateway", "switch", "ap", "camera", "phone", "access", "other", "external"];
 
 /**
  * Die UniFi-Integration legt neben echten Geräten auch Dienst-Einträge an

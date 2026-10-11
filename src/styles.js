@@ -42,6 +42,10 @@ export const styles = `
   .upd svg { width: 12px; height: 12px; stroke: var(--text-primary-color, #fff); }
   .name { font-size: .85em; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .sub { font-size: .72em; color: var(--secondary-text-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tile.ext { border: 1px dashed var(--unifi-line); }
+  .img ha-icon { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; --mdc-icon-size: 52px; }
+  .cl { margin-top: 6px; display: inline-flex; align-items: center; gap: 4px; font-size: .75em; font-weight: 500; padding: 1px 8px; border-radius: 10px; color: var(--primary-text-color); background: color-mix(in srgb, var(--primary-text-color) 9%, transparent); }
+  .cl svg { width: 12px; height: 12px; fill: var(--secondary-text-color); }
   .budget { margin-top: 8px; }
   .budget .bar { height: 4px; border-radius: 2px; background: var(--unifi-line); overflow: hidden; }
   .budget .bar > div { height: 100%; background: var(--unifi-poe); }

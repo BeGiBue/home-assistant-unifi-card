@@ -26,9 +26,11 @@ const ICONS = {
   phone: '<rect x="20" y="8" width="24" height="48" rx="5"/><path d="M28 50h8"/>',
   access: '<rect x="18" y="8" width="28" height="48" rx="4"/><circle cx="32" cy="26" r="7"/><path d="M26 44h12"/>',
   other: '<rect x="12" y="16" width="40" height="32" rx="5"/><path d="M24 32h16"/>',
+  external: '<rect x="12" y="16" width="40" height="32" rx="5"/><path d="M24 32h16"/>',
 };
 
 const BOLT = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2L4 14h6l-1 8 9-12h-6z"/></svg>';
+const USERS = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 11a3 3 0 1 0-3-3 3 3 0 0 0 3 3zm-8 0a3 3 0 1 0-3-3 3 3 0 0 0 3 3zm0 2c-2.3 0-7 1.2-7 3.5V19h14v-2.5C15 14.2 10.3 13 8 13zm8 0c-.3 0-.6 0-1 .1 1.2.9 2 2 2 3.4V19h6v-2.5c0-2.3-4.7-3.5-7-3.5z"/></svg>';
 const ARROW = '<svg viewBox="0 0 24 24" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="update"><path d="M12 19V5M5 12l7-7 7 7"/></svg>';
 
 const esc = (s) =>
@@ -62,7 +64,9 @@ class UnifiNetworkCard extends HTMLElement {
       show_summary: true,
       show_legend: true,
       auto_parent: true,
+      show_clients: true,
       devices: [],
+      external_devices: [],
       ...config,
     };
     this._sig = "";
@@ -107,11 +111,32 @@ class UnifiNetworkCard extends HTMLElement {
         cfg,
       };
     });
-    this._devices = resolveParents(base, this._config.auto_parent !== false);
+    // Manuell angelegte Geräte außerhalb von UniFi
+    const external = (this._config.external_devices || [])
+      .filter((x) => x && x.name)
+      .map((x, i) => ({
+        id: `ext:${i}`,
+        name: x.name,
+        model: x.model || "",
+        sw: "",
+        viaParent: null,
+        cfgParent: x.parent || null,
+        type: "external",
+        external: true,
+        entityIds: x.entity ? [x.entity] : [],
+        cfg: x,
+      }));
+    this._devices = resolveParents([...base, ...external], this._config.auto_parent !== false);
   }
 
   _status(d) {
     const st = this._hass.states;
+    if (d.external) {
+      // Status-Entität (optional): on/home/Zahl/… = online; off/not_home/unavailable/unknown = offline
+      const s = d.entityIds[0] && st[d.entityIds[0]];
+      const online = d.entityIds[0] ? !!s && !["unavailable", "unknown", "off", "not_home", "none"].includes(s.state) : true;
+      return { online, update: false };
+    }
     const states = d.entityIds.map((id) => st[id]).filter(Boolean);
     const tracker = states.find((s) => s.entity_id.startsWith("device_tracker."));
     const online = tracker
@@ -119,6 +144,27 @@ class UnifiNetworkCard extends HTMLElement {
       : states.some((s) => !["unavailable", "unknown"].includes(s.state));
     const update = states.some((s) => s.entity_id.startsWith("update.") && s.state === "on");
     return { online, update };
+  }
+
+  /** Anzahl verbundener Geräte (Clients) eines Switches/Access Points */
+  _clients(d) {
+    if (this._config.show_clients === false) return null;
+    const st = this._hass.states;
+    const own = d.cfg?.clients_entity;
+    if (own) return numericState(st[own]);
+    if (d.external || !["switch", "ap"].includes(d.type)) return null;
+    const re = /(^|[\s_])(clients?|stations?|stationen|verbundene)([\s_]|$)/i;
+    const s = d.entityIds
+      .map((id) => st[id])
+      .filter(Boolean)
+      .find(
+        (x) =>
+          x.entity_id.startsWith("sensor.") &&
+          re.test(`${x.attributes?.friendly_name || ""} ${x.entity_id}`) &&
+          !/(rx|tx|poe|port)/i.test(x.entity_id) &&
+          Number.isFinite(Number(x.state))
+      );
+    return s ? Number(s.state) : null;
   }
 
   _flow(d, parent) {
@@ -154,7 +200,7 @@ class UnifiNetworkCard extends HTMLElement {
     const items = this._devices.map((d) => {
       const s = this._status(d);
       const flow = cfg.show_flows ? this._flow(d, byId[d.parent]) : null;
-      return { ...d, ...s, flow };
+      return { ...d, ...s, flow, clients: this._clients(d) };
     });
     // PoE-Verbrauch pro Switch (Summe der Kinder)
     const used = {};
@@ -184,7 +230,7 @@ class UnifiNetworkCard extends HTMLElement {
     }
     const model = this._model();
     const sig = JSON.stringify([
-      model.items.map((d) => [d.id, d.name, d.online, d.update, d.flow, d.poeUsed, d.poeBudget, d.cfg?.image]),
+      model.items.map((d) => [d.id, d.name, d.online, d.update, d.flow, d.poeUsed, d.poeBudget, d.cfg?.image, d.clients]),
       model.summary,
       this._config,
       this._hass.locale?.language,
@@ -199,6 +245,7 @@ class UnifiNetworkCard extends HTMLElement {
   _imageUrl(d) {
     const c = this._config;
     if (d.cfg?.image) return d.cfg.image;
+    if (d.external) return null;
     if (c.image_base && d.model) {
       const base = c.image_base.endsWith("/") ? c.image_base : `${c.image_base}/`;
       return `${base}${encodeURIComponent(d.model.replace(/\s+/g, "-"))}.png`;
@@ -244,17 +291,19 @@ class UnifiNetworkCard extends HTMLElement {
     const budget = d.poeBudget
       ? `<div class="budget"><div class="bar"><div style="width:${pct.toFixed(1)}%"></div></div><div class="txt">${esc(t("poe"))} ${esc(formatPower(d.poeUsed, locale))} / ${esc(formatPower(d.poeBudget, locale))}</div></div>`
       : "";
+    const clients = d.clients != null ? `<div class="cl" title="${esc(t("clients"))}">${USERS} ${esc(d.clients)}</div>` : "";
+    const visual = d.external && d.cfg.icon ? `<ha-icon icon="${esc(d.cfg.icon)}"></ha-icon>` : `<div class="fb">${icon}</div>`;
     const meta = inGrid && d.flow ? `<div class="meta">${this._chip(d.flow, t, locale)}</div>` : "";
     return `
-      <div class="tile ${d.online ? "on" : "off"}" data-id="${esc(d.id)}" title="${esc(d.model)}" role="button" tabindex="0">
+      <div class="tile ${d.online ? "on" : "off"}${d.external ? " ext" : ""}" data-id="${esc(d.id)}" title="${esc(d.model)}" role="button" tabindex="0">
         <div class="img">
-          ${img ? `<img src="${esc(img)}" alt="${esc(d.model)}" loading="lazy"><div class="fb" hidden>${icon}</div>` : `<div class="fb">${icon}</div>`}
+          ${img ? `<img src="${esc(img)}" alt="${esc(d.model)}" loading="lazy"><div class="fb" hidden>${icon}</div>` : visual}
           <span class="dot"></span>
           ${d.update ? `<span class="upd" title="${esc(t("update"))}">${ARROW}</span>` : ""}
         </div>
         <div class="name">${esc(d.name)}</div>
         <div class="sub">${esc(d.model)}${d.sw ? " · " + esc(d.sw) : ""}${port}</div>
-        ${budget}${meta}
+        ${clients}${budget}${meta}
       </div>`;
   }
 
