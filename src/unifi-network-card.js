@@ -211,7 +211,7 @@ class UnifiNetworkCard extends HTMLElement {
     if (flow.poe !== null && flow.poe !== undefined) parts.push(`<div class="poe">${BOLT} ${esc(formatPower(flow.poe, locale))}</div>`);
     if (flow.down != null || flow.up != null) {
       parts.push(
-        `<div><span class="down">↓ ${esc(formatRate(flow.down, locale))}</span> <span class="up">↑ ${esc(formatRate(flow.up, locale))}</span></div>`
+        `<div><b class="ar down">↓</b> ${esc(formatRate(flow.down, locale))} <b class="ar up">↑</b> ${esc(formatRate(flow.up, locale))}</div>`
       );
     }
     return parts.join("");
@@ -288,10 +288,10 @@ class UnifiNetworkCard extends HTMLElement {
     // Ohne hass (z. B. beim ersten Rendern im Editor) gibt es noch kein Modell
     const s = model?.summary || { online: 0, total: 0, poe: 0, down: 0, up: 0, hasUplink: false };
     const pills = [`<span class="pill">${s.online}/${s.total} ${esc(t("online"))}</span>`];
-    if (cfg.show_flows && s.poe > 0) pills.push(`<span class="pill poe">${BOLT.replace("<svg", '<svg style="width:10px;height:10px;fill:currentColor"')} ${esc(formatPower(s.poe, locale))}</span>`);
+    if (cfg.show_flows && s.poe > 0) pills.push(`<span class="pill">${BOLT} ${esc(formatPower(s.poe, locale))}</span>`);
     if (cfg.show_flows && s.hasUplink) {
-      pills.push(`<span class="pill down">↓ ${esc(formatRate(s.down, locale))}</span>`);
-      pills.push(`<span class="pill up">↑ ${esc(formatRate(s.up, locale))}</span>`);
+      pills.push(`<span class="pill"><b class="ar down">↓</b> ${esc(formatRate(s.down, locale))}</span>`);
+      pills.push(`<span class="pill"><b class="ar up">↑</b> ${esc(formatRate(s.up, locale))}</span>`);
     }
     const header = `<div class="head"><h2>${esc(cfg.title ?? t("title"))}</h2>${cfg.show_summary && model ? `<div class="pills">${pills.join("")}</div>` : ""}</div>`;
     const legend =

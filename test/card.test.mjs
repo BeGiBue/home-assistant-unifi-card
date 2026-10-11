@@ -68,8 +68,8 @@ test("rendert Baum, Fluesse und escaped Namen", () => {
   assert.doesNotMatch(html, /Hue/);
   assert.match(html, /AP &lt;Büro&gt;/);
   assert.match(html, /8,9 W/);
-  assert.match(html, /↓ 38 Mb\/s/);
-  assert.match(html, /↑ 12 Mb\/s/);
+  assert.match(html, /↓<\/b> 38 Mb\/s/);
+  assert.match(html, /↑<\/b> 12 Mb\/s/);
   assert.match(html, /PoE 8,9 W \/ 400 W/);
   assert.match(html, /3\/3 Online/);
 });
