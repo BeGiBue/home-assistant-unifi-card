@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Test & Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Check bundle
+        run: |
+          test -s dist/unifi-network-card.js
+          ls -l dist/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unifi-network-card
+          path: dist/unifi-network-card.js
+          if-no-files-found: error
+
+  hacs:
+    name: HACS validation
+    runs-on: ubuntu-latest
+    # Bis zum ersten Release gibt es kein Plugin-Asset; dann meldet HACS Fehler.
+    # Nach dem ersten Release diese Zeile entfernen, damit die Prüfung blockiert.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hacs/action@main
+        with:
+          category: plugin
