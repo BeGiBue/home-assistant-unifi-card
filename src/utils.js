@@ -181,3 +181,11 @@ export function collectUnifiDevices(hass, configEntry) {
   });
   return { list, byDevice };
 }
+
+/** Port-Angabe als Liste: 5, "5", "6, 7" oder [6, 7] -> [6, 7] (mehrere Ports = Link Aggregation) */
+export function parsePorts(value) {
+  if (value === undefined || value === null || value === "") return [];
+  const raw = Array.isArray(value) ? value : String(value).split(/[,;\s]+/);
+  const ports = raw.map((x) => Number(x)).filter((n) => Number.isFinite(n) && n > 0);
+  return [...new Set(ports)];
+}

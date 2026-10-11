@@ -136,3 +136,56 @@ test("externe Geraete erscheinen am gewaehlten Switch mit Status und PoE", () =>
   assert.match(html, /tile off ext/); // Drucker: Status-Entitaet existiert nicht -> offline
   assert.match(html, /4\/5 Online/);
 });
+
+const lagHass = {
+  ...withClients,
+  entities: {
+    ...withClients.entities,
+    "sensor.sw_port_7_rx": ent("sensor.sw_port_7_rx", "sw"),
+    "sensor.sw_port_7_tx": ent("sensor.sw_port_7_tx", "sw"),
+  },
+  states: withIds({
+    ...withClients.states,
+    "sensor.sw_port_7_rx": state("8", { friendly_name: "Switch Keller Port 7 RX", device_class: "data_rate", unit_of_measurement: "Mbit/s" }),
+    "sensor.sw_port_7_tx": state("20", { friendly_name: "Switch Keller Port 7 TX", device_class: "data_rate", unit_of_measurement: "Mbit/s" }),
+    "sensor.mac_wifi_rx": state("5", { friendly_name: "Mac RX", device_class: "data_rate", unit_of_measurement: "Mbit/s" }),
+    "sensor.mac_wifi_tx": state("40", { friendly_name: "Mac TX", device_class: "data_rate", unit_of_measurement: "Mbit/s" }),
+  }),
+};
+
+test("Link Aggregation: mehrere Ports werden addiert und gekennzeichnet", () => {
+  const card = new Card();
+  card.setConfig({ external_devices: [{ name: "NAS", parent: "sw", switch_port: "5, 7" }] });
+  card.hass = lagHass;
+  const html = card.shadowRoot.innerHTML;
+  assert.match(html, /LAG ×2/);
+  assert.match(html, /↓<\/b> 58 Mb\/s/); // TX Port 5 (38) + Port 7 (20)
+  assert.match(html, /↑<\/b> 20 Mb\/s/); // RX Port 5 (12) + Port 7 (8)
+  assert.match(html, /Port 5, 7/);
+});
+
+test("Zweite Verbindung (LAN + WLAN): zweite Kachel, nicht doppelt gezaehlt", () => {
+  const card = new Card();
+  card.setConfig({
+    external_devices: [
+      {
+        name: "MacBook",
+        parent: "sw",
+        switch_port: 5,
+        link_type: "lan",
+        parent2: "ap",
+        link_type2: "wifi",
+        down_entity2: "sensor.mac_wifi_tx",
+        up_entity2: "sensor.mac_wifi_rx",
+      },
+    ],
+  });
+  card.hass = lagHass;
+  const html = card.shadowRoot.innerHTML;
+  assert.equal((html.match(/MacBook/g) || []).length, 2); // zwei Kacheln
+  assert.match(html, /tile on ext ghost/);
+  assert.match(html, /WLAN/);
+  assert.match(html, />LAN</);
+  assert.match(html, /↓<\/b> 40 Mb\/s/); // WLAN-Verbindung über eigene Sensoren
+  assert.match(html, /4\/4 Online/); // Gateway, Switch, AP, Mac – die zweite Kachel zählt nicht mit
+});

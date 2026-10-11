@@ -12,6 +12,7 @@ import {
   buildTree,
   resolveParents,
   collectUnifiDevices,
+  parsePorts,
 } from "./utils.js";
 import "./unifi-network-card-editor.js";
 
@@ -112,20 +113,38 @@ class UnifiNetworkCard extends HTMLElement {
       };
     });
     // Manuell angelegte Geräte außerhalb von UniFi
-    const external = (this._config.external_devices || [])
-      .filter((x) => x && x.name)
-      .map((x, i) => ({
-        id: `ext:${i}`,
+    const known2 = new Set(base.map((d) => d.id));
+    const external = [];
+    (this._config.external_devices || []).forEach((x, i) => {
+      if (!x || !x.name) return;
+      const common = {
         name: x.name,
         model: x.model || "",
         sw: "",
         viaParent: null,
-        cfgParent: x.parent || null,
         type: "external",
         external: true,
         entityIds: x.entity ? [x.entity] : [],
-        cfg: x,
-      }));
+      };
+      external.push({ ...common, id: `ext:${i}`, cfgParent: x.parent || null, cfg: x });
+      // Zweite Verbindung (z. B. Mac per LAN und WLAN): zweite Kachel unter dem anderen Gerät
+      if (x.parent2 && known2.has(x.parent2)) {
+        external.push({
+          ...common,
+          id: `ext:${i}:2`,
+          secondary: true,
+          cfgParent: x.parent2,
+          cfg: {
+            ...x,
+            switch_port: x.switch_port2,
+            poe_entity: undefined,
+            down_entity: x.down_entity2,
+            up_entity: x.up_entity2,
+            link_type: x.link_type2 || "wifi",
+          },
+        });
+      }
+    });
     this._devices = resolveParents([...base, ...external], this._config.auto_parent !== false);
   }
 
@@ -172,20 +191,31 @@ class UnifiNetworkCard extends HTMLElement {
     const c = d.cfg || {};
     const st = this._hass.states;
     const parentStates = parent.entityIds.map((id) => st[id]).filter(Boolean);
-    const port = c.switch_port;
+    // Mehrere Ports (Link Aggregation): Leistung und Datenraten werden addiert
+    const ports = parsePorts(c.switch_port);
+    const type = c.link_type && c.link_type !== "none" ? c.link_type : null;
     // Switch-Port: RX = vom Gerät empfangen (= Upload des Geräts), TX = zum Gerät gesendet (= Download)
-    const poe = (c.poe_entity && st[c.poe_entity]) || findPortEntity(parentStates, port, "poe");
-    const down = (c.down_entity && st[c.down_entity]) || findPortEntity(parentStates, port, "tx");
-    const up = (c.up_entity && st[c.up_entity]) || findPortEntity(parentStates, port, "rx");
-    if (!poe && !down && !up) return port ? { port, poe: null, down: null, up: null } : null;
+    const pick = (explicit, kind) =>
+      explicit && st[explicit] ? [st[explicit]] : ports.map((p) => findPortEntity(parentStates, p, kind)).filter(Boolean);
+    const poe = pick(c.poe_entity, "poe");
+    const down = pick(c.down_entity, "tx");
+    const up = pick(c.up_entity, "rx");
+    const base = { ports, port: ports.join(", "), links: Math.max(ports.length, 1), type };
+    if (!poe.length && !down.length && !up.length) {
+      return ports.length || type ? { ...base, poe: null, down: null, up: null } : null;
+    }
     const watt = (s) => {
       const n = numericState(s);
       if (n === null) return null;
       const u = String(s.attributes?.unit_of_measurement || "W");
       return u === "mW" ? n / 1000 : u === "kW" ? n * 1000 : n;
     };
-    const rate = (s) => (s ? toMbit(numericState(s), s.attributes?.unit_of_measurement) : null);
-    return { port, poe: poe ? watt(poe) : null, down: rate(down), up: rate(up) };
+    const rate = (s) => toMbit(numericState(s), s.attributes?.unit_of_measurement);
+    const sum = (list, conv) => {
+      const vals = list.map(conv).filter((v) => v !== null && v !== undefined);
+      return vals.length ? vals.reduce((x, y) => x + y, 0) : null;
+    };
+    return { ...base, poe: sum(poe, watt), down: sum(down, rate), up: sum(up, rate) };
   }
 
   _model() {
@@ -205,20 +235,21 @@ class UnifiNetworkCard extends HTMLElement {
     // PoE-Verbrauch pro Switch (Summe der Kinder)
     const used = {};
     items.forEach((d) => {
-      if (d.parent && d.flow && d.flow.poe) used[d.parent] = (used[d.parent] || 0) + d.flow.poe;
+      if (d.parent && !d.secondary && d.flow && d.flow.poe) used[d.parent] = (used[d.parent] || 0) + d.flow.poe;
     });
     items.forEach((d) => {
       d.poeUsed = used[d.id] || 0;
       d.poeBudget = Number(d.cfg?.poe_budget) || 0;
     });
     const visible = items.filter((d) => cfg.show_offline || d.online);
+    const real = items.filter((d) => !d.secondary); // Zweitverbindungen nicht doppelt zählen
     const summary = {
-      online: items.filter((d) => d.online).length,
-      total: items.length,
+      online: real.filter((d) => d.online).length,
+      total: real.length,
       poe: Object.values(used).reduce((a, b) => a + b, 0),
-      down: items.filter((d) => byId[d.parent]?.type === "gateway").reduce((a, d) => a + (d.flow?.down || 0), 0),
-      up: items.filter((d) => byId[d.parent]?.type === "gateway").reduce((a, d) => a + (d.flow?.up || 0), 0),
-      hasUplink: items.some((d) => byId[d.parent]?.type === "gateway" && (d.flow?.down != null || d.flow?.up != null)),
+      down: real.filter((d) => byId[d.parent]?.type === "gateway").reduce((a, d) => a + (d.flow?.down || 0), 0),
+      up: real.filter((d) => byId[d.parent]?.type === "gateway").reduce((a, d) => a + (d.flow?.up || 0), 0),
+      hasUplink: real.some((d) => byId[d.parent]?.type === "gateway" && (d.flow?.down != null || d.flow?.up != null)),
     };
     return { items: visible, summary };
   }
@@ -230,7 +261,7 @@ class UnifiNetworkCard extends HTMLElement {
     }
     const model = this._model();
     const sig = JSON.stringify([
-      model.items.map((d) => [d.id, d.name, d.online, d.update, d.flow, d.poeUsed, d.poeBudget, d.cfg?.image, d.clients]),
+      model.items.map((d) => [d.id, d.name, d.online, d.update, d.flow, d.poeUsed, d.poeBudget, d.cfg?.image, d.clients, d.secondary]),
       model.summary,
       this._config,
       this._hass.locale?.language,
@@ -264,6 +295,15 @@ class UnifiNetworkCard extends HTMLElement {
     return parts.join("");
   }
 
+  /** Kleine Kennzeichnung der Verbindung: LAN / WLAN / LAG ×2 */
+  _tag(f, t) {
+    const parts = [];
+    if (f.type === "wifi") parts.push(t("link_wifi"));
+    else if (f.type === "lan") parts.push(t("link_lan"));
+    if (f.links > 1) parts.push(`${t("lag")} ×${f.links}`);
+    return parts.length ? `<div><span class="lt">${esc(parts.join(" · "))}</span></div>` : "";
+  }
+
   _link(d, locale, t) {
     const f = d.flow;
     if (!this._config.show_flows || !f) return `<div class="link"><div class="stem"></div></div>`;
@@ -278,9 +318,12 @@ class UnifiNetworkCard extends HTMLElement {
     }
     if (f.down != null) lines.push(`<div class="fl d dn${f.down > 0.01 ? "" : " idle"}" style="--dur:${dur(f.down)}s"></div>`);
     if (f.up != null) lines.push(`<div class="fl u upw${f.up > 0.01 ? "" : " idle"}" style="--dur:${dur(f.up)}s"></div>`);
-    if (!lines.length) return `<div class="link"><div class="stem"></div></div>`;
+    if (!lines.length) {
+      const tag = this._tag(f, t);
+      return `<div class="link"><div class="stem"></div>${tag ? `<div class="chip" style="left:calc(50% + 10px)">${tag}</div>` : ""}</div>`;
+    }
     const width = lines.length * 4 + (lines.length - 1) * 2;
-    return `<div class="link"><div class="lines" style="width:${width}px;left:calc(50% - ${width / 2}px)">${lines.join("")}</div><div class="chip" style="left:calc(50% + ${width / 2 + 7}px)">${this._chip(f, t, locale)}</div></div>`;
+    return `<div class="link"><div class="lines" style="width:${width}px;left:calc(50% - ${width / 2}px)">${lines.join("")}</div><div class="chip" style="left:calc(50% + ${width / 2 + 7}px)">${this._tag(f, t)}${this._chip(f, t, locale)}</div></div>`;
   }
 
   _tile(d, locale, t, inGrid = false) {
@@ -295,7 +338,7 @@ class UnifiNetworkCard extends HTMLElement {
     const visual = d.external && d.cfg.icon ? `<ha-icon icon="${esc(d.cfg.icon)}"></ha-icon>` : `<div class="fb">${icon}</div>`;
     const meta = inGrid && d.flow ? `<div class="meta">${this._chip(d.flow, t, locale)}</div>` : "";
     return `
-      <div class="tile ${d.online ? "on" : "off"}${d.external ? " ext" : ""}" data-id="${esc(d.id)}" title="${esc(d.model)}" role="button" tabindex="0">
+      <div class="tile ${d.online ? "on" : "off"}${d.external ? " ext" : ""}${d.secondary ? " ghost" : ""}" data-id="${esc(d.id)}" title="${esc(d.model)}" role="button" tabindex="0">
         <div class="img">
           ${img ? `<img src="${esc(img)}" alt="${esc(d.model)}" loading="lazy"><div class="fb" hidden>${icon}</div>` : visual}
           <span class="dot"></span>

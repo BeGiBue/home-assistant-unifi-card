@@ -43,6 +43,8 @@ export const styles = `
   .name { font-size: .85em; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .sub { font-size: .72em; color: var(--secondary-text-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .tile.ext { border: 1px dashed var(--unifi-line); }
+  .tile.ghost { opacity: .85; }
+  .chip .lt { display: inline-block; font-size: .85em; font-weight: 700; padding: 0 6px; border-radius: 6px; margin-bottom: 2px; background: color-mix(in srgb, var(--primary-color, #03a9f4) 22%, transparent); }
   .img ha-icon { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; --mdc-icon-size: 52px; }
   .cl { margin-top: 6px; display: inline-flex; align-items: center; gap: 4px; font-size: .75em; font-weight: 500; padding: 1px 8px; border-radius: 10px; color: var(--primary-text-color); background: color-mix(in srgb, var(--primary-text-color) 9%, transparent); }
   .cl svg { width: 12px; height: 12px; fill: var(--secondary-text-color); }

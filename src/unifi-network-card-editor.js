@@ -54,6 +54,11 @@ class UnifiNetworkCardEditor extends HTMLElement {
   _schema() {
     const t = localize(this._hass);
     const deviceOptions = this._deviceOptions();
+    const linkTypes = [
+      { value: "none", label: t("e_link_none") },
+      { value: "lan", label: t("link_lan") },
+      { value: "wifi", label: t("link_wifi") },
+    ];
     this._deviceSig = JSON.stringify(deviceOptions);
     return [
       { name: "title", selector: { text: {} } },
@@ -117,7 +122,7 @@ class UnifiNetworkCardEditor extends HTMLElement {
               parent: { label: t("e_parent"), selector: { select: { mode: "dropdown", options: deviceOptions } } },
               name: { label: t("e_name"), selector: { text: {} } },
               image: { label: t("e_image"), selector: { text: {} } },
-              switch_port: { label: t("e_switch_port"), selector: { number: { min: 1, max: 100, mode: "box" } } },
+              switch_port: { label: t("e_switch_port"), selector: { text: {} } },
               poe_entity: {
                 label: t("e_poe_entity"),
                 selector: { entity: { filter: { domain: "sensor", device_class: "power" } } },
@@ -131,6 +136,7 @@ class UnifiNetworkCardEditor extends HTMLElement {
                 selector: { entity: { filter: { domain: "sensor", device_class: "data_rate" } } },
               },
               poe_budget: { label: t("e_poe_budget"), selector: { number: { min: 0, max: 5000, unit_of_measurement: "W", mode: "box" } } },
+              link_type: { label: t("e_link_type"), selector: { select: { mode: "dropdown", options: linkTypes } } },
               clients_entity: {
                 label: t("e_clients_entity"),
                 selector: { entity: { filter: { domain: "sensor" } } },
@@ -152,7 +158,8 @@ class UnifiNetworkCardEditor extends HTMLElement {
               icon: { label: t("e_ext_icon"), selector: { icon: {} } },
               image: { label: t("e_image"), selector: { text: {} } },
               parent: { label: t("e_parent"), selector: { select: { mode: "dropdown", options: deviceOptions } } },
-              switch_port: { label: t("e_switch_port"), selector: { number: { min: 1, max: 100, mode: "box" } } },
+              switch_port: { label: t("e_switch_port"), selector: { text: {} } },
+              link_type: { label: t("e_link_type"), selector: { select: { mode: "dropdown", options: linkTypes } } },
               entity: { label: t("e_ext_entity"), selector: { entity: {} } },
               poe_entity: {
                 label: t("e_poe_entity"),
@@ -164,6 +171,17 @@ class UnifiNetworkCardEditor extends HTMLElement {
               },
               up_entity: {
                 label: t("e_up_entity"),
+                selector: { entity: { filter: { domain: "sensor", device_class: "data_rate" } } },
+              },
+              parent2: { label: t("e_parent2"), selector: { select: { mode: "dropdown", options: deviceOptions } } },
+              switch_port2: { label: t("e_port2"), selector: { text: {} } },
+              link_type2: { label: t("e_link_type2"), selector: { select: { mode: "dropdown", options: linkTypes } } },
+              down_entity2: {
+                label: t("e_down2"),
+                selector: { entity: { filter: { domain: "sensor", device_class: "data_rate" } } },
+              },
+              up_entity2: {
+                label: t("e_up2"),
                 selector: { entity: { filter: { domain: "sensor", device_class: "data_rate" } } },
               },
             },

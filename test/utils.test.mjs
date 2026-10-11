@@ -12,6 +12,7 @@ import {
   resolveParents,
   isNetworkDevice,
   collectUnifiDevices,
+  parsePorts,
 } from "../src/utils.js";
 
 test("typeOf erkennt UniFi-Modelle", () => {
@@ -143,4 +144,14 @@ test("collectUnifiDevices filtert auf UniFi-Netzwerkgeraete", () => {
   assert.deepEqual(collectUnifiDevices(hass, "e2").list.map((d) => d.id), ["d"]);
   assert.deepEqual(collectUnifiDevices(hass).byDevice.a.map((e) => e.entity_id), ["sensor.a"]);
   assert.deepEqual(collectUnifiDevices(undefined).list, []);
+});
+
+test("parsePorts versteht Zahl, Text und Liste (Link Aggregation)", () => {
+  assert.deepEqual(parsePorts(5), [5]);
+  assert.deepEqual(parsePorts("6, 7"), [6, 7]);
+  assert.deepEqual(parsePorts("6;7 8"), [6, 7, 8]);
+  assert.deepEqual(parsePorts([3, "4", 3]), [3, 4]);
+  assert.deepEqual(parsePorts(""), []);
+  assert.deepEqual(parsePorts(undefined), []);
+  assert.deepEqual(parsePorts("abc"), []);
 });

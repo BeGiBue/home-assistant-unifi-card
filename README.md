@@ -110,6 +110,38 @@ external_devices:
 Ohne `entity` gilt das Gerät als online. `poe_entity`, `down_entity` und `up_entity` funktionieren wie bei
 UniFi-Geräten. Ohne `parent` ordnet die Automatik das Gerät wie einen Access Point ein.
 
+## Link Aggregation und zwei Verbindungen
+
+**Link Aggregation (z. B. NAS mit zwei Kabeln):** Trage bei `switch_port` mehrere Ports ein, etwa `"6, 7"`.
+Die Karte addiert PoE-Leistung und Datenraten aller Ports und kennzeichnet die Verbindung mit „LAG ×2“.
+Das gilt für UniFi- und externe Geräte (auch für Switch-Uplinks).
+
+**Zwei Verbindungen (z. B. Mac per LAN und WLAN):** Lege das Gerät als externes Gerät an. Die erste
+Verbindung (LAN) über `parent` und `switch_port`, die zweite über `parent2` (z. B. der Access Point) mit
+`link_type2: wifi`. Das Gerät erscheint dann an beiden Stellen im Baum (zweite Kachel unter dem
+Access Point); es wird in den Summen nur einmal gezählt. Für die WLAN-Verbindung gibt es keine
+Port-Sensoren, dafür kannst du `down_entity2` und `up_entity2` (z. B. die Client-Bandbreitensensoren des
+Mac) angeben.
+
+```yaml
+external_devices:
+  - name: NAS
+    icon: mdi:nas
+    parent: <Switch>
+    switch_port: "6, 7"        # Link Aggregation
+  - name: MacBook
+    icon: mdi:laptop
+    parent: <Switch>
+    switch_port: 9
+    link_type: lan
+    parent2: <Access Point>
+    link_type2: wifi
+    down_entity2: sensor.macbook_tx
+    up_entity2: sensor.macbook_rx
+```
+
+`link_type` (`lan` | `wifi` | `none`) blendet eine Kennzeichnung an der Verbindung ein.
+
 ## Hierarchie (Baumansicht)
 
 Die Karte nimmt die Uplink-Beziehung aus der Geräte-Registry (`via_device`). Liefert die UniFi-Integration
