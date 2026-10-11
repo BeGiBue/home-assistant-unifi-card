@@ -293,7 +293,8 @@ class UnifiNetworkCard extends HTMLElement {
     else if (!model.items.length) body = `<div class="msg">${esc(t("empty"))}</div>`;
     else body = cfg.layout === "grid" ? this._gridHtml(model.items, locale, t) : this._treeHtml(model.items, locale, t);
 
-    const s = model.summary;
+    // Ohne hass (z. B. beim ersten Rendern im Editor) gibt es noch kein Modell
+    const s = model?.summary || { online: 0, total: 0, poe: 0, down: 0, up: 0, hasUplink: false };
     const pills = [`<span class="pill">${s.online}/${s.total} ${esc(t("online"))}</span>`];
     if (cfg.show_flows && s.poe > 0) pills.push(`<span class="pill poe">${BOLT.replace("<svg", '<svg style="width:10px;height:10px;fill:currentColor"')} ${esc(formatPower(s.poe, locale))}</span>`);
     if (cfg.show_flows && s.hasUplink) {
