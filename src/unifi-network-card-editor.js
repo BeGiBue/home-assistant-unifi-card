@@ -9,16 +9,29 @@ class UnifiNetworkCardEditor extends HTMLElement {
     super();
     this._config = {};
     this._form = null;
+    this._lang = null;
+    this._emitted = null;
+  }
+
+  connectedCallback() {
+    // Der Dialog von Home Assistant scrollt selbst; der Editor darf keine eigene Höhe erzwingen.
+    this.style.display = "block";
   }
 
   setConfig(config) {
+    // Echo der eigenen Änderung (config-changed -> setConfig) ignorieren,
+    // sonst wird das Formular neu aufgebaut und springt an den Anfang.
+    if (this._emitted && JSON.stringify(config) === this._emitted) {
+      this._config = { ...config };
+      return;
+    }
     this._config = { ...config };
-    this._sync();
+    this._sync(true);
   }
 
   set hass(hass) {
     this._hass = hass;
-    this._sync();
+    this._sync(false);
   }
 
   _schema() {
@@ -123,9 +136,10 @@ class UnifiNetworkCardEditor extends HTMLElement {
     return key ? t(key) : schema.name;
   };
 
-  _sync() {
+  _sync(dataChanged) {
     if (!this._hass) return;
-    if (!this._form) {
+    const firstTime = !this._form;
+    if (firstTime) {
       this._form = document.createElement("ha-form");
       this._form.computeLabel = this._label;
       this._form.addEventListener("value-changed", (ev) => {
@@ -137,21 +151,32 @@ class UnifiNetworkCardEditor extends HTMLElement {
           if (v === "" || v === undefined || v === null || (Array.isArray(v) && v.length === 0)) delete config[k];
         });
         this._config = config;
+        this._emitted = JSON.stringify(config);
         this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));
       });
       this.appendChild(this._form);
     }
+    // hass wird bei jeder Zustandsänderung neu gesetzt: nur die Referenz weiterreichen.
     this._form.hass = this._hass;
-    this._form.schema = this._schema();
-    this._form.data = {
-      layout: "tree",
-      show_offline: true,
-      show_flows: true,
-      animate_flows: true,
-      show_summary: true,
-      show_legend: true,
-      ...this._config,
-    };
+
+    // Schema nur bei Erstaufbau oder Sprachwechsel neu setzen. Ein neues Schema-Array
+    // lässt ha-form alles neu rendern (Scroll-Position und aufgeklappte Bereiche gehen verloren).
+    const lang = this._hass.locale?.language || this._hass.language;
+    if (firstTime || lang !== this._lang) {
+      this._lang = lang;
+      this._form.schema = this._schema();
+    }
+    if (firstTime || dataChanged) {
+      this._form.data = {
+        layout: "tree",
+        show_offline: true,
+        show_flows: true,
+        animate_flows: true,
+        show_summary: true,
+        show_legend: true,
+        ...this._config,
+      };
+    }
   }
 }
 
