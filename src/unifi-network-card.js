@@ -18,6 +18,9 @@ import {
   detectLinks,
   formatDuration,
   uptimeSeconds,
+  detectLatency,
+  latencyLabel,
+  detectWan,
 } from "./utils.js";
 import "./unifi-network-card-editor.js";
 
@@ -74,6 +77,7 @@ class UnifiNetworkCard extends HTMLElement {
       show_restart: true,
       show_latency: true,
       show_wan: true,
+      managed: false,
       swap_port_direction: false,
       latency_entities: [],
       devices: [],
@@ -107,7 +111,18 @@ class UnifiNetworkCard extends HTMLElement {
   }
 
   _collectDevices() {
-    const { list, byDevice } = collectUnifiDevices(this._hass, this._config.config_entry);
+    const { list: all, byDevice } = collectUnifiDevices(this._hass, this._config.config_entry);
+    // Verwaltete Liste: nur Geräte anzeigen, die als Eintrag in `devices` stehen (Löschen blendet ein Gerät aus)
+    const listed = new Set((this._config.devices || []).map((x) => x && x.device));
+    const list = this._config.managed === true ? all.filter((d) => listed.has(d.id)) : all;
+    this._allUnifi = all.map((d) => ({
+      id: d.id,
+      name: d.name_by_user || d.name || d.model || "",
+      haName: d.name_by_user || d.name || "",
+      type: typeOf(d.model || ""),
+      mac: ((d.connections || []).find((c) => c && c[0] === "mac") || [])[1] || "",
+      entityIds: (byDevice[d.id] || []).map((e) => e.entity_id),
+    }));
     const known = new Set(list.map((d) => d.id));
     const base = list.map((d) => {
       const cfg = this._overrides(d.id);
@@ -127,7 +142,7 @@ class UnifiNetworkCard extends HTMLElement {
       };
     });
     // Automatische Zuordnung Gerät -> Switch-Port (UniFi Network+), nur wenn nichts konfiguriert ist
-    this._links = detectLinks(base, this._hass.states, this._hass.entities);
+    this._links = detectLinks(this._allUnifi, this._hass.states, this._hass.entities);
     this._linkSig = JSON.stringify(this._links);
     base.forEach((d) => {
       const l = this._links[d.id];
@@ -232,42 +247,19 @@ class UnifiNetworkCard extends HTMLElement {
     let defs = (cfg.latency_entities || [])
       .map((x) => (typeof x === "string" ? { entity: x } : x))
       .filter((x) => x && x.entity);
-    if (!defs.length) {
-      this._devices
-        .filter((d) => !d.external)
-        .forEach((d) =>
-          d.entityIds.forEach((id) => {
-            if (id.startsWith("sensor.") && /laten(cy|z)/i.test(id) && st[id]) defs.push({ entity: id, dev: d.name });
-          })
-        );
-    }
-    if (!(cfg.latency_entities || []).length) {
-      // WAN-Latenz der Community-Integration UniFi Network+ (hängt am Controller-Eintrag, nicht an einem Gerät)
-      Object.values(st).forEach((s) => {
-        const id = s.entity_id;
-        if (id.startsWith("sensor.") && /wan.*laten(cy|z)/i.test(id) && !defs.some((x) => x.entity === id)) {
-          defs.push({ entity: id, global: true });
-        }
-      });
-    }
+    // Automatik nur in der nicht verwalteten Ansicht; verwaltet: ausschließlich die Einträge in `latency_entities`
+    if (!defs.length && cfg.managed !== true) defs = detectLatency(this._devices.filter((d) => !d.external), st);
     return defs
       .map((x) => {
         const s = st[x.entity];
         if (!s) return null;
-        const fn = s.attributes?.friendly_name || x.entity;
-        let name = x.name;
-        if (!name && x.global) name = localize(this._hass)("wan_latency");
-        if (!name) {
-          name = fn;
-          if (x.dev && name.toLowerCase().startsWith(x.dev.toLowerCase())) name = name.slice(x.dev.length);
-          name = name.replace(/\s*(wan\s*)?laten(cy|z)\s*$/i, "").replace(/^\s*(wan\s*)?laten(cy|z)\s*/i, "").trim() || fn;
-        }
-        const guess = /cloudflare/i.test(name) ? "mdi:cloud-outline" : /google/i.test(name) ? "mdi:google" : /microsoft/i.test(name) ? "mdi:microsoft" : null;
+        const lab = latencyLabel(x, s, localize(this._hass)("wan_latency"));
+        const name = lab.name;
         const n = Number(s.state);
         return {
           entity: x.entity,
           name,
-          icon: x.icon || s.attributes?.icon || guess || "mdi:network-outline",
+          icon: lab.icon,
           value: Number.isFinite(n) && s.state !== "" ? n : null,
           unit: s.attributes?.unit_of_measurement || "ms",
           hist: (this._hist && this._hist[x.entity]) || [],
@@ -281,17 +273,9 @@ class UnifiNetworkCard extends HTMLElement {
     const cfg = this._config;
     if (cfg.show_wan === false) return [];
     const st = this._hass.states;
-    const find = (re) =>
-      Object.values(st)
-        .filter((s) => s.entity_id.startsWith("sensor."))
-        .filter((s) => {
-          const txt = `${s.entity_id} ${s.attributes?.friendly_name || ""}`;
-          return /wan/i.test(txt) && re.test(txt) && !/speed_?test|usage|total|volume|laten(cy|z)|availab|verf[uü]gbar|paketverlust|packet|abbr|drops|monat/i.test(txt) && !/wan_?[2-9]/i.test(s.entity_id);
-        })
-        .map((s) => s.entity_id)
-        .sort()[0];
-    const mk = (kind, own, re, label) => {
-      const id = own || find(re);
+    const det = cfg.managed === true ? {} : detectWan(st);
+    const mk = (kind, own, auto, label) => {
+      const id = own || auto;
       const s = id && st[id];
       if (!s) return null;
       const unit = s.attributes?.unit_of_measurement;
@@ -304,8 +288,8 @@ class UnifiNetworkCard extends HTMLElement {
       };
     };
     return [
-      mk("down", cfg.wan_down_entity, /(download|downstream|_down\b|\bdown\b)/i, "legend_down"),
-      mk("up", cfg.wan_up_entity, /(upload|upstream|_up\b|\bup\b)/i, "legend_up"),
+      mk("down", cfg.wan_down_entity, det.down, "legend_down"),
+      mk("up", cfg.wan_up_entity, det.up, "legend_up"),
     ].filter(Boolean);
   }
 
@@ -445,7 +429,7 @@ class UnifiNetworkCard extends HTMLElement {
       this._collectDevices();
     }
     // Port-Sensoren können später aktiviert werden: Zuordnung bei Änderung neu aufbauen
-    const liveSig = JSON.stringify(detectLinks(this._devices.filter((d) => !d.external), hass.states, hass.entities));
+    const liveSig = JSON.stringify(detectLinks(this._allUnifi || [], hass.states, hass.entities));
     if (liveSig !== this._linkSig) this._collectDevices();
     const byId = Object.fromEntries(this._devices.map((d) => [d.id, d]));
     const items = this._devices.map((d) => {

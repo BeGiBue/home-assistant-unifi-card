@@ -434,3 +434,23 @@ test("Klick auf ein Gerät zeigt Status, IP, Betriebszeit und Neustart – keine
   assert.match(html, /192\.168\.1\.20/);
   assert.doesNotMatch(html, /data-act="dev-restart"/); // AP hat hier keinen Neustart-Button
 });
+
+test("Verwaltete Liste: nur Geräte mit Eintrag, Ping nur aus latency_entities", () => {
+  const h = {
+    ...restartHass,
+    states: withIds({ ...restartHass.states }),
+  };
+  const card = new Card();
+  card.setConfig({ managed: true, devices: [{ device: "gw" }, { device: "sw" }], latency_entities: [{ entity: "sensor.gw_google_wan_latency", name: "Google" }] });
+  card.hass = h;
+  const html = card.shadowRoot.innerHTML;
+  assert.match(html, /UDM-Pro/);
+  assert.match(html, /USW-Pro-24-PoE/);
+  assert.doesNotMatch(html, /U6-Pro/); // AP ohne Eintrag: ausgeblendet
+  assert.match(html, /<div class="pn">Google<\/div>/);
+  assert.doesNotMatch(html, /Cloudflare/); // nicht in latency_entities: nicht automatisch ergänzt
+  const empty = new Card();
+  empty.setConfig({ managed: true, devices: [{ device: "gw" }] });
+  empty.hass = h;
+  assert.doesNotMatch(empty.shadowRoot.innerHTML, /class="ping"/);
+});

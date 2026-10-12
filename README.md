@@ -79,6 +79,7 @@ devices:
 | `show_restart` | `true` | Neustart-Button an Geräten mit Restart-Entität anzeigen |
 | `show_latency` | `true` | Ping-/Latenz-Sensoren anzeigen |
 | `latency_entities[]` | automatisch | Eigene Latenz-Sensoren (`entity`, `name`, `icon`) |
+| `managed` | `false` | Nur Geräte, Ping- und Internet-Sensoren aus den Einträgen anzeigen (vom Erkennungs-Button gesetzt) |
 | `swap_port_direction` | `false` | Download/Upload der Port-Sensoren vertauschen |
 | `latency_hours` | `24` | Zeitraum des Verlaufs in Stunden |
 | `external_devices[]` | – | Geräte außerhalb von UniFi manuell anzeigen (siehe unten) |
@@ -109,11 +110,17 @@ deaktiviert) und je Port **Download/Upload/PoE Power** (standardmäßig deaktivi
 heißen „{Portname} Download/Upload“. Erkannt wird der Port über den Namen „Port N“. Hast du Ports in UniFi umbenannt,
 gib die Sensoren am Gerät direkt an (`poe_entity`, `down_entity`, `up_entity`).
 
-**Editor-Button „Automatische Erkennung neu starten“:** trägt die erkannte Zuordnung (übergeordnetes Gerät, Port und bei einem
-Port die Sensoren für PoE, Download und Upload) in die Geräte-Einstellungen ein. Was die Automatik geschrieben hat, merkt sich der
-Eintrag unter `auto_detected`. Ein erneuter Klick aktualisiert genau diese Felder (z. B. nach dem Umstecken eines Kabels).
-Selbst eingetragene oder nachträglich geänderte Werte werden nie überschrieben. Ist ein Gerät nicht mehr erkennbar,
-verschwinden nur die automatisch geschriebenen Felder.
+**Einträge statt unsichtbarer Automatik:** Der Button „Automatische Erkennung neu starten“ (im Editor unter der Geräteliste)
+legt für **jedes UniFi-Gerät** einen Eintrag in `devices` an (Name, bei erkannter Zuordnung auch übergeordnetes Gerät, Port und
+bei einem Port die Sensoren für PoE, Download und Upload), für jeden **Ping-Sensor** einen Eintrag in `latency_entities` und trägt
+die **Internet-Sensoren** (`wan_down_entity`, `wan_up_entity`) ein. Dabei wird `managed: true` gesetzt: Die Karte zeigt dann nur
+noch, was in der Liste steht. **Einen Eintrag zu löschen blendet das Gerät oder den Ping-Sensor aus.** Nur ein erneuter Klick auf
+den Button ergänzt gelöschte Einträge wieder. Bei einer neuen, leeren Karte läuft die Erkennung beim ersten Öffnen des Editors
+einmal automatisch. Mit `managed: false` zeigt die Karte wieder alles automatisch an.
+
+Was die Automatik geschrieben hat, merkt sich der Eintrag unter `auto_detected`. Ein erneuter Klick aktualisiert genau diese
+Felder (z. B. nach dem Umstecken eines Kabels). Selbst eingetragene oder nachträglich geänderte Werte werden nie
+überschrieben. Ist ein Gerät nicht mehr erkennbar, verschwinden nur die automatisch geschriebenen Felder.
 
 **PoE:** Wird ein Gerät nicht über PoE versorgt (Leistung 0 W oder kein PoE-Sensor), entfällt die PoE-Anzeige und die
 orangefarbene Linie an der Verbindung.

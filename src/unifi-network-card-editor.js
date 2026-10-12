@@ -1,5 +1,5 @@
 import { localize } from "./localize.js";
-import { collectUnifiDevices, typeOf, TYPE_ORDER, buildAutoDeviceEntries } from "./utils.js";
+import { collectUnifiDevices, typeOf, TYPE_ORDER, buildAutoDeviceEntries, detectLatency, detectWan, mergeLatencyEntries } from "./utils.js";
 
 /**
  * Visueller Editor auf Basis von <ha-form>: alle Einstellungen laufen über
@@ -90,6 +90,7 @@ class UnifiNetworkCardEditor extends HTMLElement {
           { name: "show_wan", selector: { boolean: {} } },
           { name: "swap_port_direction", selector: { boolean: {} } },
           { name: "auto_parent", selector: { boolean: {} } },
+          { name: "managed", selector: { boolean: {} } },
         ],
       },
       {
@@ -246,60 +247,114 @@ class UnifiNetworkCardEditor extends HTMLElement {
       latency_hours: "e_latency_hours",
       show_wan: "e_show_wan",
       swap_port_direction: "e_swap",
+      managed: "e_managed",
       wan_down_entity: "e_wan_down",
       wan_up_entity: "e_wan_up",
     }[schema.name];
     return key ? t(key) : schema.name;
   };
 
-  _applyLinks() {
+  /** Automatische Erkennung: Einträge für alle UniFi-Geräte, Ping- und WAN-Sensoren anlegen bzw. aktualisieren.
+   *  Manuelle Werte bleiben unverändert; gelöschte Einträge werden hier (und nur hier) wieder ergänzt. */
+  _detect() {
     const t = localize(this._hass);
     const { list, byDevice } = collectUnifiDevices(this._hass, this._config.config_entry);
     const { devices, changed } = buildAutoDeviceEntries(list, byDevice, this._hass.states, this._config.devices || [], this._hass.entities);
-    if (!changed) {
-      this._status.textContent = t("e_apply_none");
+    const defs = detectLatency(
+      list.map((d) => ({ name: d.name_by_user || d.name || "", entityIds: (byDevice[d.id] || []).map((e) => e.entity_id) })),
+      this._hass.states
+    );
+    const lat = mergeLatencyEntries(this._config.latency_entities, defs, this._hass.states, t("wan_latency"));
+    const wan = detectWan(this._hass.states);
+    const config = { ...this._config, managed: true };
+    if (devices.length) config.devices = devices;
+    if (lat.entries.length) config.latency_entities = lat.entries;
+    let wanAdded = 0;
+    if (!config.wan_down_entity && wan.down) (config.wan_down_entity = wan.down), wanAdded++;
+    if (!config.wan_up_entity && wan.up) (config.wan_up_entity = wan.up), wanAdded++;
+    return { config, count: changed + lat.added + wanAdded + (this._config.managed === true ? 0 : 1) };
+  }
+
+  _applyLinks(silent = false) {
+    const t = localize(this._hass);
+    const { config, count } = this._detect();
+    if (JSON.stringify(config) === JSON.stringify(this._config)) {
+      if (!silent) this._status.textContent = t("e_apply_none");
       return;
     }
-    const config = { ...this._config, devices };
     this._config = config;
     this._emitted = JSON.stringify(config);
-    this._form.data = { ...this._form.data, devices };
-    this._status.textContent = t("e_applied").replace("{n}", String(changed));
+    this._setData();
+    this._status.textContent = silent ? "" : t("e_applied").replace("{n}", String(count));
     this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));
+  }
+
+  _data() {
+    return {
+      layout: "tree",
+      show_offline: true,
+      show_flows: true,
+      animate_flows: true,
+      show_summary: true,
+      show_legend: true,
+      auto_parent: true,
+      show_clients: true,
+      show_restart: true,
+      show_latency: true,
+      show_wan: true,
+      ...this._config,
+    };
+  }
+
+  _setData() {
+    const data = this._data();
+    this._form.data = data;
+    if (this._formB) this._formB.data = data;
+  }
+
+  _makeForm() {
+    const form = document.createElement("ha-form");
+    form.computeLabel = this._label;
+    form.addEventListener("value-changed", (ev) => {
+      ev.stopPropagation();
+      const config = { ...ev.detail.value };
+      // leere Werte entfernen, damit die YAML sauber bleibt
+      Object.keys(config).forEach((k) => {
+        const v = config[k];
+        if (v === "" || v === undefined || v === null || (Array.isArray(v) && v.length === 0)) delete config[k];
+      });
+      this._config = config;
+      this._emitted = JSON.stringify(config);
+      // das jeweils andere Formular auf demselben Stand halten
+      const other = form === this._form ? this._formB : this._form;
+      if (other) other.data = this._data();
+      this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));
+    });
+    return form;
   }
 
   _sync(dataChanged) {
     if (!this._hass) return;
     const firstTime = !this._form;
     if (firstTime) {
-      this._form = document.createElement("ha-form");
-      this._form.computeLabel = this._label;
-      this._form.addEventListener("value-changed", (ev) => {
-        ev.stopPropagation();
-        const config = { ...ev.detail.value };
-        // leere Werte entfernen, damit die YAML sauber bleibt
-        Object.keys(config).forEach((k) => {
-          const v = config[k];
-          if (v === "" || v === undefined || v === null || (Array.isArray(v) && v.length === 0)) delete config[k];
-        });
-        this._config = config;
-        this._emitted = JSON.stringify(config);
-        this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));
-      });
+      // Zwei Formulare mit dem Erkennungs-Button dazwischen: Geräte/Ping oben, externe Geräte darunter
+      this._form = this._makeForm();
+      this._formB = this._makeForm();
       this.appendChild(this._form);
-      // Erkannte Port-Zuordnung (Gerät -> Port, PoE-, Download-, Upload-Sensor) in die Geräte-Einträge übernehmen
       const row = document.createElement("div");
-      row.style.cssText = "margin-top:16px;display:flex;flex-direction:column;gap:8px;align-items:flex-start";
+      row.style.cssText = "margin:8px 0 16px;display:flex;flex-direction:column;gap:8px;align-items:flex-start";
       this._applyBtn = document.createElement("ha-button");
       this._applyBtn.addEventListener("click", () => this._applyLinks());
       this._status = document.createElement("div");
       this._status.style.cssText = "font-size:.85em;color:var(--secondary-text-color)";
       row.append(this._applyBtn, this._status);
       this.appendChild(row);
+      this.appendChild(this._formB);
     }
     this._applyBtn.textContent = localize(this._hass)("e_apply");
     // hass wird bei jeder Zustandsänderung neu gesetzt: nur die Referenz weiterreichen.
     this._form.hass = this._hass;
+    this._formB.hass = this._hass;
 
     // Schema nur bei Erstaufbau oder Sprachwechsel neu setzen. Ein neues Schema-Array
     // lässt ha-form alles neu rendern (Scroll-Position und aufgeklappte Bereiche gehen verloren).
@@ -309,23 +364,15 @@ class UnifiNetworkCardEditor extends HTMLElement {
     this._devRef = this._hass.devices;
     if (firstTime || lang !== this._lang || devicesChanged) {
       this._lang = lang;
-      this._form.schema = this._schema();
+      const schema = this._schema();
+      this._form.schema = schema.slice(0, -1);
+      this._formB.schema = schema.slice(-1);
     }
-    if (firstTime || dataChanged) {
-      this._form.data = {
-        layout: "tree",
-        show_offline: true,
-        show_flows: true,
-        animate_flows: true,
-        show_summary: true,
-        show_legend: true,
-        auto_parent: true,
-        show_clients: true,
-        show_restart: true,
-        show_latency: true,
-        show_wan: true,
-        ...this._config,
-      };
+    if (firstTime || dataChanged) this._setData();
+
+    // Neue Karte (noch nichts konfiguriert): Erkennung einmal automatisch ausführen
+    if (firstTime && !this._config.managed && !(this._config.devices || []).length && !(this._config.latency_entities || []).length) {
+      Promise.resolve().then(() => this._applyLinks(true));
     }
   }
 }

@@ -18,6 +18,9 @@ import {
   detectLinks,
   buildAutoDeviceEntries,
   portSensorKey,
+  detectLatency,
+  detectWan,
+  mergeLatencyEntries,
   formatDuration,
   uptimeSeconds,
 } from "../src/utils.js";
@@ -244,8 +247,9 @@ test("buildAutoDeviceEntries füllt nur leere Felder und lässt LAG-Entitäten w
   assert.equal(ap.poe_entity, "sensor.sw_p5_poe");
   assert.equal(ap.switch_port, "5");
   const nas = r.devices.find((d) => d.device === "nas");
-  assert.deepEqual(nas, { device: "nas", parent: "sw", switch_port: "6, 7", auto_detected: { parent: "sw", switch_port: "6, 7" } });
-  assert.equal(r.changed, 2);
+  assert.deepEqual(nas, { device: "nas", name: "NAS", parent: "sw", switch_port: "6, 7", auto_detected: { name: "NAS", parent: "sw", switch_port: "6, 7" } });
+  assert.ok(r.devices.find((d) => d.device === "sw")); // jedes UniFi-Gerät bekommt einen Eintrag
+  assert.equal(r.changed, 3);
   // Zweiter Lauf ändert nichts mehr
   assert.equal(buildAutoDeviceEntries(list, byDevice, states, r.devices).changed, 0);
 });
@@ -296,22 +300,26 @@ test("Erneute Erkennung aktualisiert nur automatische Felder, manuelle bleiben",
       mk("sensor.l6", "Keller Port 6 Link Speed", port === 6 ? { connected_mac: "AA:00" } : {}),
     ]),
   });
+  const get = (r, id) => r.devices.find((d) => d.device === id);
   const r1 = buildAutoDeviceEntries(list, byDevice, at(5), []);
-  assert.equal(r1.devices[0].switch_port, "5");
-  assert.equal(r1.devices[0].up_entity, "sensor.d5");
+  assert.equal(get(r1, "ap").switch_port, "5");
+  assert.equal(get(r1, "ap").up_entity, "sensor.d5");
   // Kabel umgesteckt: automatische Felder folgen
   const r2 = buildAutoDeviceEntries(list, byDevice, at(6), r1.devices);
-  assert.equal(r2.devices[0].switch_port, "6");
-  assert.equal(r2.devices[0].up_entity, "sensor.d6");
+  assert.equal(get(r2, "ap").switch_port, "6");
+  assert.equal(get(r2, "ap").up_entity, "sensor.d6");
   // Nutzer ändert den Port von Hand: bleibt beim nächsten Lauf erhalten
-  const manual = r2.devices.map((d) => ({ ...d, switch_port: "9" }));
+  const manual = r2.devices.map((d) => (d.device === "ap" ? { ...d, switch_port: "9" } : d));
   const r3 = buildAutoDeviceEntries(list, byDevice, at(5), manual);
-  assert.equal(r3.devices[0].switch_port, "9");
-  assert.equal(r3.devices[0].auto_detected.switch_port, undefined);
+  assert.equal(get(r3, "ap").switch_port, "9");
+  assert.equal(get(r3, "ap").auto_detected.switch_port, undefined);
   // Gerät nicht mehr erkannt: nur automatische Felder verschwinden, Eintrag mit Namen bleibt
-  const named = r1.devices.map((d) => ({ ...d, name: "Mein AP" }));
+  const named = r1.devices.map((d) => (d.device === "ap" ? { ...d, name: "Mein AP" } : d));
   const r4 = buildAutoDeviceEntries(list, byDevice, at(0), named);
-  assert.deepEqual(r4.devices, [{ device: "ap", name: "Mein AP" }]);
+  const ap4 = get(r4, "ap");
+  assert.equal(ap4.name, "Mein AP");
+  assert.equal(ap4.switch_port, undefined);
+  assert.equal(ap4.parent, undefined);
 });
 
 test("formatDuration und uptimeSeconds", () => {
@@ -320,4 +328,22 @@ test("formatDuration und uptimeSeconds", () => {
   assert.equal(uptimeSeconds({ state: "2026-10-10T00:00:00+00:00", attributes: { device_class: "timestamp" } }, Date.parse("2026-10-11T00:00:00Z")), 86400);
   assert.equal(uptimeSeconds({ state: "2", attributes: { unit_of_measurement: "h" } }), 7200);
   assert.equal(uptimeSeconds({ state: "unavailable", attributes: {} }), null);
+});
+
+test("mergeLatencyEntries ergänzt nur fehlende Ping-Sensoren; detectWan erkennt Durchsatz", () => {
+  const st = (id, n) => [id, { entity_id: id, state: "5", attributes: { friendly_name: n } }];
+  const states = Object.fromEntries([
+    st("sensor.gw_cloudflare_wan_latency", "Router Cloudflare WAN latency"),
+    st("sensor.gw_google_wan_latency", "Router Google WAN latency"),
+    st("sensor.wan_download", "WAN Download"),
+    st("sensor.wan_upload", "WAN Upload"),
+    st("sensor.speedtest_download", "Speedtest Download"),
+  ]);
+  const defs = detectLatency([{ name: "Router", entityIds: ["sensor.gw_cloudflare_wan_latency", "sensor.gw_google_wan_latency"] }], states);
+  const r1 = mergeLatencyEntries([], defs, states, "WAN");
+  assert.deepEqual(r1.entries.map((e) => e.name), ["Cloudflare", "Google"]);
+  // Eintrag gelöscht -> bleibt weg, bis die Erkennung neu gestartet wird
+  const r2 = mergeLatencyEntries([r1.entries[0]], defs, states, "WAN");
+  assert.equal(r2.added, 1);
+  assert.deepEqual(detectWan(states), { down: "sensor.wan_download", up: "sensor.wan_upload" });
 });

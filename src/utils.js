@@ -329,7 +329,7 @@ export function buildAutoDeviceEntries(list, byDevice, states, existing = [], en
   const apply = (entry, wanted) => {
     const auto = (entry.auto_detected ||= {});
     let touched = false;
-    ["parent", "switch_port", "poe_entity", "down_entity", "up_entity"].forEach((k) => {
+    ["name", "parent", "switch_port", "poe_entity", "down_entity", "up_entity"].forEach((k) => {
       const w = wanted[k];
       const cur = entry[k];
       const owned = auto[k] !== undefined && String(cur) === String(auto[k]);
@@ -358,30 +358,29 @@ export function buildAutoDeviceEntries(list, byDevice, states, existing = [], en
     return touched;
   };
 
-  Object.entries(links).forEach(([cid, l]) => {
-    const parentStates = (byDevice[l.parent] || []).map((e) => states[e.entity_id]).filter(Boolean);
-    const wanted = { parent: l.parent, switch_port: l.ports.join(", ") };
-    if (l.ports.length === 1) {
-      const p = l.ports[0];
-      const o = { deviceName: devs.find((x) => x.id === l.parent)?.haName, entities };
-      wanted.poe_entity = findPortEntity(parentStates, p, "poe", o)?.entity_id;
-      wanted.down_entity = findPortEntity(parentStates, p, "tx", o)?.entity_id;
-      wanted.up_entity = findPortEntity(parentStates, p, "rx", o)?.entity_id;
+  // Jedes UniFi-Gerät bekommt einen Eintrag (damit er einzeln gelöscht werden kann); Port-Zuordnung kommt dazu, wenn erkannt.
+  devs.forEach((dev) => {
+    const l = links[dev.id];
+    const wanted = { name: dev.name };
+    if (l) {
+      const parentStates = (byDevice[l.parent] || []).map((e) => states[e.entity_id]).filter(Boolean);
+      wanted.parent = l.parent;
+      wanted.switch_port = l.ports.join(", ");
+      if (l.ports.length === 1) {
+        const p = l.ports[0];
+        const o = { deviceName: devs.find((x) => x.id === l.parent)?.haName, entities };
+        wanted.poe_entity = findPortEntity(parentStates, p, "poe", o)?.entity_id;
+        wanted.down_entity = findPortEntity(parentStates, p, "tx", o)?.entity_id;
+        wanted.up_entity = findPortEntity(parentStates, p, "rx", o)?.entity_id;
+      }
     }
-    let entry = out.find((e) => e.device === cid);
+    let entry = out.find((e) => e.device === dev.id);
     if (!entry) {
-      entry = { device: cid };
+      entry = { device: dev.id };
       out.push(entry);
     }
     if (apply(entry, wanted)) changed++;
   });
-  // Geräte, die nicht mehr erkannt werden: nur automatisch geschriebene Felder entfernen
-  for (let n = out.length - 1; n >= 0; n--) {
-    const entry = out[n];
-    if (links[entry.device] || !entry.auto_detected) continue;
-    if (apply(entry, {})) changed++;
-    if (Object.keys(entry).every((k) => k === "device")) out.splice(n, 1);
-  }
   return { devices: out, changed };
 }
 
@@ -460,4 +459,68 @@ export function uptimeSeconds(stateObj, now = Date.now()) {
   if (!Number.isFinite(n)) return null;
   const f = { s: 1, min: 60, h: 3600, d: 86400 }[String(a.unit_of_measurement || "s").toLowerCase()] ?? 1;
   return n * f;
+}
+
+/** Latenz-Sensoren (WAN-Ping): an UniFi-Geräten sowie global (UniFi Network+) */
+export function detectLatency(devs, states) {
+  const defs = [];
+  (devs || []).forEach((d) =>
+    (d.entityIds || []).forEach((id) => {
+      if (id.startsWith("sensor.") && /laten(cy|z)/i.test(id) && states[id]) defs.push({ entity: id, dev: d.name });
+    })
+  );
+  Object.values(states || {}).forEach((s) => {
+    const id = s.entity_id;
+    if (id.startsWith("sensor.") && /wan.*laten(cy|z)/i.test(id) && !defs.some((x) => x.entity === id)) defs.push({ entity: id, global: true });
+  });
+  return defs;
+}
+
+/** Anzeigename und Symbol eines Latenz-Sensors */
+export function latencyLabel(def, s, wanLabel = "WAN") {
+  const fn = s?.attributes?.friendly_name || def.entity;
+  let name = def.name;
+  if (!name && def.global) name = wanLabel;
+  if (!name) {
+    name = fn;
+    if (def.dev && name.toLowerCase().startsWith(def.dev.toLowerCase())) name = name.slice(def.dev.length);
+    name = name.replace(/\s*(wan\s*)?laten(cy|z)\s*$/i, "").replace(/^\s*(wan\s*)?laten(cy|z)\s*/i, "").trim() || fn;
+  }
+  const guess = /cloudflare/i.test(name) ? "mdi:cloud-outline" : /google/i.test(name) ? "mdi:google" : /microsoft/i.test(name) ? "mdi:microsoft" : null;
+  return { name, icon: def.icon || s?.attributes?.icon || guess || "mdi:network-outline" };
+}
+
+/** WAN-Durchsatz-Sensoren (Download/Upload) am Namen erkennen; Speedtest, Verfügbarkeit usw. werden ignoriert */
+export function detectWan(states) {
+  const find = (re) =>
+    Object.values(states || {})
+      .filter((s) => s.entity_id.startsWith("sensor."))
+      .filter((s) => {
+        const txt = `${s.entity_id} ${s.attributes?.friendly_name || ""}`;
+        return (
+          /wan/i.test(txt) &&
+          re.test(txt) &&
+          !/speed_?test|usage|total|volume|laten(cy|z)|availab|verf[uü]gbar|paketverlust|packet|abbr|drops|monat/i.test(txt) &&
+          !/wan_?[2-9]/i.test(s.entity_id)
+        );
+      })
+      .map((s) => s.entity_id)
+      .sort()[0];
+  return {
+    down: find(/(download|downstream|_down\b|\bdown\b)/i),
+    up: find(/(upload|upstream|_up\b|\bup\b)/i),
+  };
+}
+
+/** Erkannte Latenz-Sensoren als Einträge ergänzen (nur fehlende; vorhandene und gelöschte Entscheidungen bleiben) */
+export function mergeLatencyEntries(existing, defs, states, wanLabel) {
+  const out = (existing || []).map((x) => (typeof x === "string" ? { entity: x } : { ...x }));
+  let added = 0;
+  defs.forEach((d) => {
+    if (out.some((x) => x.entity === d.entity)) return;
+    const l = latencyLabel(d, states[d.entity], wanLabel);
+    out.push({ entity: d.entity, name: l.name, icon: l.icon });
+    added++;
+  });
+  return { entries: out, added };
 }
