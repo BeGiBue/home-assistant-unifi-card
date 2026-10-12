@@ -64,12 +64,24 @@ class UnifiNetworkCardEditor extends HTMLElement {
    */
   _deviceOptions() {
     const { list } = collectUnifiDevices(this._hass, this._config.config_entry);
-    return list
-      .map((d) => ({
-        value: d.id,
-        label: `${d.name_by_user || d.name || d.model}${d.model ? ` (${d.model})` : ""}`,
-        rank: TYPE_ORDER.indexOf(typeOf(d.model || "")),
-      }))
+    const label = (d) => `${d.name_by_user || d.name || d.model}${d.model ? ` (${d.model})` : ""}`;
+    const opts = list.map((d) => ({ value: d.id, label: label(d), rank: TYPE_ORDER.indexOf(typeOf(d.model || "")) }));
+    // Konfigurierte Geräte, die nicht in der Liste stehen (Filter, zusammengeführte Network+-Geräte, …): Klarname aus der Registry,
+    // damit nie eine nackte ID im Dropdown erscheint.
+    const known = new Set(opts.map((o) => o.value));
+    const cfg = this._config || {};
+    const refs = [
+      ...(cfg.devices || []).map((x) => x && x.device),
+      ...(cfg.devices || []).map((x) => x && x.parent),
+      ...(cfg.external_devices || []).flatMap((x) => (x ? [x.parent, x.parent2] : [])),
+    ];
+    refs.forEach((id) => {
+      if (!id || known.has(id)) return;
+      known.add(id);
+      const d = this._hass.devices?.[id];
+      if (d) opts.push({ value: id, label: label(d), rank: 99 });
+    });
+    return opts
       .sort((a, b) => a.rank - b.rank || a.label.localeCompare(b.label))
       .map(({ value, label }) => ({ value, label }));
   }
@@ -345,6 +357,7 @@ class UnifiNetworkCardEditor extends HTMLElement {
     const config = { ...this._config, external_devices: external };
     this._config = config;
     this._emitted = JSON.stringify(config);
+    this._refreshOptions();
     this._setData();
     this._suggestList.textContent = "";
     this._suggestStatus.textContent = t("e_suggest_done").replace("{n}", String(chosen.length));
@@ -360,6 +373,7 @@ class UnifiNetworkCardEditor extends HTMLElement {
     }
     this._config = config;
     this._emitted = JSON.stringify(config);
+    this._refreshOptions();
     this._setData();
     this._status.textContent = silent ? "" : t("e_applied").replace("{n}", String(count));
     this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));
@@ -380,6 +394,14 @@ class UnifiNetworkCardEditor extends HTMLElement {
       show_wan: true,
       ...this._config,
     };
+  }
+
+  /** Schema neu setzen, falls sich die Geräteauswahl durch neue Einträge geändert hat */
+  _refreshOptions() {
+    if (!this._form || JSON.stringify(this._deviceOptions()) === this._deviceSig) return;
+    const schema = this._schema();
+    this._form.schema = schema.slice(0, -1);
+    this._formB.schema = schema.slice(-1);
   }
 
   _setData() {
