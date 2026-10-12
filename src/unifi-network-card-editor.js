@@ -19,7 +19,29 @@ class UnifiNetworkCardEditor extends HTMLElement {
     this.style.display = "block";
   }
 
+  /** Fehler im Editor sichtbar machen (statt dass Home Assistant auf YAML zurückfällt) */
+  _safe(fn) {
+    try {
+      fn();
+      if (this._err) this._err.hidden = true;
+    } catch (err) {
+      console.error("unifi-network-card editor:", err);
+      if (!this._err) {
+        this._err = document.createElement("div");
+        this._err.style.cssText = "color:var(--error-color,#f44336);margin:8px 0;font-size:.9em";
+        this.insertBefore ? this.insertBefore(this._err, this.firstChild) : this.appendChild(this._err);
+      }
+      this._err.hidden = false;
+      this._err.textContent = `Editor-Fehler: ${err && err.message ? err.message : err}`;
+    }
+  }
+
   setConfig(config) {
+    this._safe(() => this._setConfig(config));
+  }
+
+  _setConfig(config) {
+    this._configured = true;
     // Echo der eigenen Änderung (config-changed -> setConfig) ignorieren,
     // sonst wird das Formular neu aufgebaut und springt an den Anfang.
     if (this._emitted && JSON.stringify(config) === this._emitted) {
@@ -28,11 +50,12 @@ class UnifiNetworkCardEditor extends HTMLElement {
     }
     this._config = { ...config };
     this._sync(true);
+    this._maybeAuto();
   }
 
   set hass(hass) {
     this._hass = hass;
-    this._sync(false);
+    this._safe(() => this._sync(false));
   }
 
   /**
@@ -365,6 +388,16 @@ class UnifiNetworkCardEditor extends HTMLElement {
     if (this._formB) this._formB.data = data;
   }
 
+  /** Neue Karte (noch nichts konfiguriert): Erkennung einmal automatisch ausführen – erst nachdem die Konfiguration bekannt ist */
+  _maybeAuto() {
+    if (this._autoChecked || !this._configured || !this._form || !this._hass) return;
+    this._autoChecked = true;
+    const c = this._config;
+    if (!c.managed && !(c.devices || []).length && !(c.latency_entities || []).length) {
+      Promise.resolve().then(() => this._safe(() => this._applyLinks(true)));
+    }
+  }
+
   _makeForm() {
     const form = document.createElement("ha-form");
     form.computeLabel = this._label;
@@ -435,10 +468,7 @@ class UnifiNetworkCardEditor extends HTMLElement {
     }
     if (firstTime || dataChanged) this._setData();
 
-    // Neue Karte (noch nichts konfiguriert): Erkennung einmal automatisch ausführen
-    if (firstTime && !this._config.managed && !(this._config.devices || []).length && !(this._config.latency_entities || []).length) {
-      Promise.resolve().then(() => this._applyLinks(true));
-    }
+    this._maybeAuto();
   }
 }
 
