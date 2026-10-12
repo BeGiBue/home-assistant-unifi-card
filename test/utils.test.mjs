@@ -17,6 +17,7 @@ import {
   sparkline,
   detectLinks,
   buildAutoDeviceEntries,
+  portSensorKey,
 } from "../src/utils.js";
 
 test("typeOf erkennt UniFi-Modelle", () => {
@@ -157,7 +158,8 @@ test("parsePorts versteht Zahl, Text und Liste (Link Aggregation)", () => {
   assert.deepEqual(parsePorts([3, "4", 3]), [3, 4]);
   assert.deepEqual(parsePorts(""), []);
   assert.deepEqual(parsePorts(undefined), []);
-  assert.deepEqual(parsePorts("abc"), []);
+  assert.deepEqual(parsePorts("abc"), ["abc"]); // Port mit eigenem Namen
+  assert.deepEqual(parsePorts("NAS 1; NAS 2"), ["NAS 1", "NAS 2"]);
 });
 
 test("downsample und sparkline", () => {
@@ -244,4 +246,32 @@ test("buildAutoDeviceEntries füllt nur leere Felder und lässt LAG-Entitäten w
   assert.equal(r.changed, 2);
   // Zweiter Lauf ändert nichts mehr
   assert.equal(buildAutoDeviceEntries(list, byDevice, states, r.devices).changed, 0);
+});
+
+test("Ports mit eigenem Namen und deutsche Sensornamen (UniFi Network+)", () => {
+  const devs = [
+    { id: "sw", name: "Keller", haName: "Keller", type: "switch", mac: "", entityIds: ["sensor.k_nas_ls", "sensor.k_nas_poe", "sensor.k_nas_dl", "sensor.k_nas_ul", "sensor.k_p5_ls", "sensor.k_nas2_dl"] },
+    { id: "ap", name: "Werkstatt", haName: "Werkstatt", type: "ap", mac: "aa:00", entityIds: [] },
+    { id: "nas", name: "NAS", haName: "NAS", type: "other", mac: "", entityIds: [] },
+  ];
+  const st = (id, n, a = {}) => [id, { entity_id: id, state: "1", attributes: { friendly_name: n, ...a } }];
+  const states = Object.fromEntries([
+    st("sensor.k_nas_ls", "Keller NAS Verbindungsgeschwindigkeit", { connected_device: "NAS" }),
+    st("sensor.k_nas_poe", "Keller NAS PoE-Leistung", { device_class: "power" }),
+    st("sensor.k_nas_dl", "Keller NAS Download", { device_class: "data_rate" }),
+    st("sensor.k_nas_ul", "Keller NAS Upload", { device_class: "data_rate" }),
+    st("sensor.k_nas2_dl", "Keller NAS 2 Download", { device_class: "data_rate" }),
+    st("sensor.k_p5_ls", "Keller Port 5 Verbindungsgeschwindigkeit", { connected_mac: "AA:00" }),
+  ]);
+  const links = detectLinks(devs, states);
+  assert.deepEqual(links.nas, { parent: "sw", ports: ["NAS"] });
+  assert.deepEqual(links.ap, { parent: "sw", ports: [5] });
+  const list = Object.values(states);
+  const o = { deviceName: "Keller" };
+  assert.equal(findPortEntity(list, "NAS", "poe", o).entity_id, "sensor.k_nas_poe");
+  assert.equal(findPortEntity(list, "NAS", "rx", o).entity_id, "sensor.k_nas_dl"); // nicht "NAS 2"
+  assert.equal(findPortEntity(list, "NAS", "tx", o).entity_id, "sensor.k_nas_ul");
+  // translation_key macht die Art sprachunabhängig
+  const ents = { "sensor.k_nas_ls": { translation_key: "port_link_speed" } };
+  assert.equal(portSensorKey(states["sensor.k_nas_ls"], { deviceName: "Keller", entities: ents }).label, "NAS");
 });

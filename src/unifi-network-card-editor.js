@@ -249,7 +249,7 @@ class UnifiNetworkCardEditor extends HTMLElement {
   _applyLinks() {
     const t = localize(this._hass);
     const { list, byDevice } = collectUnifiDevices(this._hass, this._config.config_entry);
-    const { devices, changed } = buildAutoDeviceEntries(list, byDevice, this._hass.states, this._config.devices || []);
+    const { devices, changed } = buildAutoDeviceEntries(list, byDevice, this._hass.states, this._config.devices || [], this._hass.entities);
     if (!changed) {
       this._status.textContent = t("e_apply_none");
       return;

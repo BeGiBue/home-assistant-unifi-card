@@ -119,12 +119,13 @@ class UnifiNetworkCard extends HTMLElement {
         cfgParent: cfg.parent || null,
         type: typeOf(model),
         entityIds: (byDevice[d.id] || []).map((e) => e.entity_id),
+        haName: d.name_by_user || d.name || "",
         mac: ((d.connections || []).find((c) => c && c[0] === "mac") || [])[1] || "",
         cfg,
       };
     });
     // Automatische Zuordnung Gerät -> Switch-Port (UniFi Network+), nur wenn nichts konfiguriert ist
-    this._links = detectLinks(base, this._hass.states);
+    this._links = detectLinks(base, this._hass.states, this._hass.entities);
     this._linkSig = JSON.stringify(this._links);
     base.forEach((d) => {
       const l = this._links[d.id];
@@ -234,7 +235,7 @@ class UnifiNetworkCard extends HTMLElement {
         .filter((d) => !d.external)
         .forEach((d) =>
           d.entityIds.forEach((id) => {
-            if (id.startsWith("sensor.") && /latency/i.test(id) && st[id]) defs.push({ entity: id, dev: d.name });
+            if (id.startsWith("sensor.") && /laten(cy|z)/i.test(id) && st[id]) defs.push({ entity: id, dev: d.name });
           })
         );
     }
@@ -242,7 +243,7 @@ class UnifiNetworkCard extends HTMLElement {
       // WAN-Latenz der Community-Integration UniFi Network+ (hängt am Controller-Eintrag, nicht an einem Gerät)
       Object.values(st).forEach((s) => {
         const id = s.entity_id;
-        if (id.startsWith("sensor.") && /wan.*latency/i.test(id) && !defs.some((x) => x.entity === id)) {
+        if (id.startsWith("sensor.") && /wan.*laten(cy|z)/i.test(id) && !defs.some((x) => x.entity === id)) {
           defs.push({ entity: id, global: true });
         }
       });
@@ -257,7 +258,7 @@ class UnifiNetworkCard extends HTMLElement {
         if (!name) {
           name = fn;
           if (x.dev && name.toLowerCase().startsWith(x.dev.toLowerCase())) name = name.slice(x.dev.length);
-          name = name.replace(/\s*(wan\s*)?latency\s*$/i, "").replace(/^\s*(wan\s*)?latency\s*/i, "").trim() || fn;
+          name = name.replace(/\s*(wan\s*)?laten(cy|z)\s*$/i, "").replace(/^\s*(wan\s*)?laten(cy|z)\s*/i, "").trim() || fn;
         }
         const guess = /cloudflare/i.test(name) ? "mdi:cloud-outline" : /google/i.test(name) ? "mdi:google" : /microsoft/i.test(name) ? "mdi:microsoft" : null;
         const n = Number(s.state);
@@ -283,7 +284,7 @@ class UnifiNetworkCard extends HTMLElement {
         .filter((s) => s.entity_id.startsWith("sensor."))
         .filter((s) => {
           const txt = `${s.entity_id} ${s.attributes?.friendly_name || ""}`;
-          return /wan/i.test(txt) && re.test(txt) && !/speed_?test|usage|total|volume|latency|availab/i.test(txt) && !/wan_?[2-9]/i.test(s.entity_id);
+          return /wan/i.test(txt) && re.test(txt) && !/speed_?test|usage|total|volume|laten(cy|z)|availab|verf[uü]gbar|paketverlust|packet|abbr|drops|monat/i.test(txt) && !/wan_?[2-9]/i.test(s.entity_id);
         })
         .map((s) => s.entity_id)
         .sort()[0];
@@ -345,6 +346,7 @@ class UnifiNetworkCard extends HTMLElement {
   _flow(d, parent) {
     if (!parent) return null;
     const c = d.cfg || {};
+    const t0 = localize(this._hass);
     const st = this._hass.states;
     const parentStates = parent.entityIds.map((id) => st[id]).filter(Boolean);
     // Mehrere Ports (Link Aggregation): Leistung und Datenraten werden addiert
@@ -353,13 +355,21 @@ class UnifiNetworkCard extends HTMLElement {
     const type = c.link_type && c.link_type !== "none" ? c.link_type : null;
     // Switch-Port: RX = vom Gerät empfangen (= Upload des Geräts), TX = zum Gerät gesendet (= Download)
     const pick = (explicit, kind) =>
-      explicit && st[explicit] ? [st[explicit]] : ports.map((p) => findPortEntity(parentStates, p, kind)).filter(Boolean);
+      explicit && st[explicit]
+        ? [st[explicit]]
+        : ports.map((p) => findPortEntity(parentStates, p, kind, { deviceName: parent.haName, entities: this._hass.entities })).filter(Boolean);
     const poe = pick(c.poe_entity, "poe");
     // swap_port_direction: falls eine Integration RX/TX (bzw. Download/Upload) je Port andersherum liefert
     const swap = this._config.swap_port_direction === true;
     const down = pick(c.down_entity, swap ? "rx" : "tx");
     const up = pick(c.up_entity, swap ? "tx" : "rx");
-    const base = { ports, port: ports.join(", "), links: Math.max(ports.length, 1), type };
+    const base = {
+      ports,
+      port: ports.join(", "),
+      portText: ports.every((p) => typeof p === "number") ? `${t0("port")} ${ports.join(", ")}` : ports.join(", "),
+      links: Math.max(ports.length, 1),
+      type,
+    };
     if (!poe.length && !down.length && !up.length) {
       return ports.length || type ? { ...base, poe: null, down: null, up: null } : null;
     }
@@ -386,7 +396,7 @@ class UnifiNetworkCard extends HTMLElement {
       this._collectDevices();
     }
     // Port-Sensoren können später aktiviert werden: Zuordnung bei Änderung neu aufbauen
-    const liveSig = JSON.stringify(detectLinks(this._devices.filter((d) => !d.external), hass.states));
+    const liveSig = JSON.stringify(detectLinks(this._devices.filter((d) => !d.external), hass.states, hass.entities));
     if (liveSig !== this._linkSig) this._collectDevices();
     const byId = Object.fromEntries(this._devices.map((d) => [d.id, d]));
     const items = this._devices.map((d) => {
@@ -498,7 +508,7 @@ class UnifiNetworkCard extends HTMLElement {
   _tile(d, locale, t, inGrid = false) {
     const img = this._imageUrl(d);
     const icon = `<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[d.type] || ICONS.other}</svg>`;
-    const port = d.flow?.port ? ` · ${esc(t("port"))} ${esc(d.flow.port)}` : "";
+    const port = d.flow?.portText ? ` · ${esc(d.flow.portText)}` : "";
     const pct = d.poeBudget ? Math.min(100, (d.poeUsed / d.poeBudget) * 100) : 0;
     const budget = d.poeBudget
       ? `<div class="budget"><div class="bar"><div style="width:${pct.toFixed(1)}%"></div></div><div class="txt">${esc(t("poe"))} ${esc(formatPower(d.poeUsed, locale))} / ${esc(formatPower(d.poeBudget, locale))}</div></div>`

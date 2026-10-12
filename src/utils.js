@@ -74,21 +74,56 @@ export function formatPower(watt, locale) {
  * `states`: Array von { entity_id, attributes: { friendly_name, device_class, unit_of_measurement } }
  * `kind`: "poe" | "rx" | "tx"
  */
-export function findPortEntity(states, port, kind) {
+export function findPortEntity(states, port, kind, opts = {}) {
   if (port === undefined || port === null || port === "") return undefined;
+  const wantClass = kind === "poe" ? "power" : "data_rate";
+  // Port mit eigenem Namen (z. B. "NAS"): über Gerätenamen und Sensor-Art zuordnen
+  if (typeof port === "string" && !/^\d+$/.test(port)) {
+    const want = port.trim().toLowerCase();
+    return states.find((s) => {
+      const k = portSensorKey(s, opts);
+      if (!k || k.kind !== kind) return false;
+      const dc = s.attributes?.device_class;
+      return k.label.toLowerCase() === want && (!dc || dc === wantClass);
+    });
+  }
   const portRe = new RegExp(`(?:port|anschluss)[\\s_]*0*${Number(port)}(?!\\d)`, "i");
   const kindRe = {
     poe: /poe/i,
     rx: /(^|[\s_])rx([\s_]|$)|download|empfang/i,
     tx: /(^|[\s_])tx([\s_]|$)|upload|sende/i,
   }[kind];
-  const wantClass = kind === "poe" ? "power" : "data_rate";
   return states.find((s) => {
     const name = `${s.attributes?.friendly_name || ""} ${s.entity_id}`;
     if (!portRe.test(name) || !kindRe.test(name)) return false;
     const dc = s.attributes?.device_class;
     return !dc || dc === wantClass;
   });
+}
+
+const PORT_TK = { port_link_speed: "link", port_poe_power: "poe", port_download: "rx", port_upload: "tx" };
+const PORT_SUFFIX = [
+  ["link", /\s*(link[\s-]*speed|verbindungsgeschwindigkeit)$/i],
+  ["poe", /\s*poe[\s-]*(power|leistung)$/i],
+  ["rx", /\s*download$/i],
+  ["tx", /\s*upload$/i],
+];
+
+/**
+ * Port-Sensor (UniFi Network+) in Art und Port-Namen zerlegen. Die Sensoren heißen
+ * "{Gerät} {Portname} {Messwert}", der Portname ist der in UniFi vergebene Name ("Port 5", "NAS", …).
+ * opts: { deviceName, entities } – entities = hass.entities (translation_key macht die Art sprachunabhängig)
+ */
+export function portSensorKey(s, opts = {}) {
+  if (!s || !String(s.entity_id).startsWith("sensor.")) return null;
+  let name = String(s.attributes?.friendly_name || "").trim();
+  const dn = String(opts.deviceName || "").trim();
+  if (dn && name.toLowerCase().startsWith(dn.toLowerCase())) name = name.slice(dn.length).trim();
+  const tk = PORT_TK[opts.entities?.[s.entity_id]?.translation_key];
+  for (const [kind, re] of PORT_SUFFIX) {
+    if (re.test(name) && (!tk || tk === kind)) return { kind, label: name.replace(re, "").trim() };
+  }
+  return null;
 }
 
 /** Zahl aus einem State lesen (null bei unavailable/unknown) */
@@ -208,7 +243,7 @@ export function collectUnifiDevices(hass, configEntry) {
  * devices: [{id, name, type, mac, entityIds}], states: hass.states
  * Ergebnis: { [kindId]: { parent, ports: [..] } } – mehrere Ports zum selben Elternteil = Link Aggregation.
  */
-export function detectLinks(devices, states) {
+export function detectLinks(devices, states, entities = {}) {
   const norm = (s) => String(s || "").trim().toLowerCase();
   const byMac = {};
   const byName = {};
@@ -225,13 +260,14 @@ export function detectLinks(devices, states) {
       const s = states?.[id];
       if (!s) return;
       const a = s.attributes || {};
-      const label = `${a.friendly_name || ""} ${id}`;
-      if (!/link[\s_]*speed/i.test(label)) return;
-      const m = /(?:port|anschluss)[\s_]*0*(\d+)(?!\d)/i.exec(label);
-      if (!m) return;
+      const k = portSensorKey({ entity_id: id, attributes: a }, { deviceName: p.haName || p.name, entities });
+      if (!k || k.kind !== "link" || !k.label) return;
+      // "Port 5" -> 5, eigener Name ("NAS") bleibt als Name
+      const m = /^(?:port|anschluss)\s*0*(\d+)$/i.exec(k.label);
+      const portId = m ? Number(m[1]) : k.label;
       const child = (a.connected_mac && byMac[norm(a.connected_mac)]) || (a.connected_device && byName[norm(a.connected_device)]);
       if (!child || child.id === p.id) return;
-      (((found[child.id] ||= {})[p.id]) ||= []).push(Number(m[1]));
+      (((found[child.id] ||= {})[p.id]) ||= []).push(portId);
     });
   });
   const out = {};
@@ -244,7 +280,10 @@ export function detectLinks(devices, states) {
       .filter((pid) => rankOf(byId[pid]) < rankOf(child))
       .sort((x, y) => rankOf(byId[x]) - rankOf(byId[y]));
     if (!cands.length) return;
-    out[cid] = { parent: cands[0], ports: [...new Set(parents[cands[0]])].sort((x, y) => x - y) };
+    const ports = [...new Set(parents[cands[0]])].sort((x, y) =>
+      typeof x === "number" && typeof y === "number" ? x - y : typeof x === "number" ? -1 : typeof y === "number" ? 1 : String(x).localeCompare(String(y))
+    );
+    out[cid] = { parent: cands[0], ports };
   });
   return out;
 }
@@ -255,15 +294,16 @@ export function detectLinks(devices, states) {
  * Bei Link Aggregation (mehrere Ports) werden nur Eltern und Ports eingetragen – die Karte addiert die Ports selbst.
  * Ergebnis: { devices: neue devices[]-Liste, changed: Anzahl betroffener Geräte }
  */
-export function buildAutoDeviceEntries(list, byDevice, states, existing = []) {
+export function buildAutoDeviceEntries(list, byDevice, states, existing = [], entities = {}) {
   const devs = list.map((d) => ({
     id: d.id,
     name: d.name_by_user || d.name || "",
+    haName: d.name_by_user || d.name || "",
     type: typeOf(d.model || ""),
     mac: ((d.connections || []).find((c) => c && c[0] === "mac") || [])[1] || "",
     entityIds: (byDevice[d.id] || []).map((e) => e.entity_id),
   }));
-  const links = detectLinks(devs, states);
+  const links = detectLinks(devs, states, entities);
   const out = (existing || []).map((e) => ({ ...e }));
   let changed = 0;
   Object.entries(links).forEach(([cid, l]) => {
@@ -271,9 +311,10 @@ export function buildAutoDeviceEntries(list, byDevice, states, existing = []) {
     const wanted = { parent: l.parent, switch_port: l.ports.join(", ") };
     if (l.ports.length === 1) {
       const p = l.ports[0];
-      wanted.poe_entity = findPortEntity(parentStates, p, "poe")?.entity_id;
-      wanted.down_entity = findPortEntity(parentStates, p, "tx")?.entity_id;
-      wanted.up_entity = findPortEntity(parentStates, p, "rx")?.entity_id;
+      const o = { deviceName: devs.find((x) => x.id === l.parent)?.haName, entities };
+      wanted.poe_entity = findPortEntity(parentStates, p, "poe", o)?.entity_id;
+      wanted.down_entity = findPortEntity(parentStates, p, "tx", o)?.entity_id;
+      wanted.up_entity = findPortEntity(parentStates, p, "rx", o)?.entity_id;
     }
     let entry = out.find((e) => e.device === cid);
     if (!entry) {
@@ -295,9 +336,23 @@ export function buildAutoDeviceEntries(list, byDevice, states, existing = []) {
 /** Port-Angabe als Liste: 5, "5", "6, 7" oder [6, 7] -> [6, 7] (mehrere Ports = Link Aggregation) */
 export function parsePorts(value) {
   if (value === undefined || value === null || value === "") return [];
-  const raw = Array.isArray(value) ? value : String(value).split(/[,;\s]+/);
-  const ports = raw.map((x) => Number(x)).filter((n) => Number.isFinite(n) && n > 0);
-  return [...new Set(ports)];
+  let raw;
+  if (Array.isArray(value)) raw = value;
+  else {
+    const str = String(value).trim();
+    // nur Zahlen: "6 7", "6, 7"; sonst Namen, getrennt durch Komma/Semikolon ("NAS 1; NAS 2")
+    raw = /^[\d\s,;]+$/.test(str) ? str.split(/[,;\s]+/) : str.split(/[,;]/);
+  }
+  const out = [];
+  raw.forEach((x) => {
+    const t = String(x).trim();
+    if (!t) return;
+    const n = Number(t);
+    const v = /^\d+$/.test(t) ? n : t;
+    if (v === 0 || out.includes(v)) return;
+    out.push(v);
+  });
+  return out;
 }
 
 /** Reduziert eine Messreihe auf höchstens n Punkte (Mittelwert je Abschnitt). */

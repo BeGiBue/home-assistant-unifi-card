@@ -113,6 +113,11 @@ gib die Sensoren am Gerät direkt an (`poe_entity`, `down_entity`, `up_entity`).
 Port die Sensoren für PoE, Download und Upload) in die Geräte-Einstellungen ein. Es werden nur leere Felder gefüllt. Gelöschte
 Einträge übernimmt der Button beim nächsten Klick erneut.
 
+**Benannte Ports und deutsche Namen:** Network+ benennt die Sensoren nach dem Port-Namen aus UniFi
+(„Keller NAS Download“, „Keller Port 5 PoE-Leistung“). Die Karte erkennt sowohl „Port N“ als auch eigene Namen und
+die deutschen Bezeichnungen („Verbindungsgeschwindigkeit“, „PoE-Leistung“). Bei `switch_port` kannst du deshalb auch den
+Port-Namen eintragen, mehrere durch Komma oder Semikolon getrennt (`NAS 1; NAS 2`).
+
 **Automatische Port-Zuordnung:** Die Sensoren „Port N Link Speed“ von Network+ nennen das angeschlossene Gerät
 (`connected_mac` / `connected_device`). Die Karte ordnet damit APs, Kameras und Switches automatisch dem richtigen
 Port (und bei mehreren Ports zum selben Gerät einer Link Aggregation) sowie dem richtigen Uplink zu. Voraussetzung:
