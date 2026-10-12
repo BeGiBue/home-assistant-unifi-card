@@ -1,5 +1,5 @@
 import { localize } from "./localize.js";
-import { collectUnifiDevices, typeOf, TYPE_ORDER } from "./utils.js";
+import { collectUnifiDevices, typeOf, TYPE_ORDER, buildAutoDeviceEntries } from "./utils.js";
 
 /**
  * Visueller Editor auf Basis von <ha-form>: alle Einstellungen laufen über
@@ -246,6 +246,22 @@ class UnifiNetworkCardEditor extends HTMLElement {
     return key ? t(key) : schema.name;
   };
 
+  _applyLinks() {
+    const t = localize(this._hass);
+    const { list, byDevice } = collectUnifiDevices(this._hass, this._config.config_entry);
+    const { devices, changed } = buildAutoDeviceEntries(list, byDevice, this._hass.states, this._config.devices || []);
+    if (!changed) {
+      this._status.textContent = t("e_apply_none");
+      return;
+    }
+    const config = { ...this._config, devices };
+    this._config = config;
+    this._emitted = JSON.stringify(config);
+    this._form.data = { ...this._form.data, devices };
+    this._status.textContent = t("e_applied").replace("{n}", String(changed));
+    this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));
+  }
+
   _sync(dataChanged) {
     if (!this._hass) return;
     const firstTime = !this._form;
@@ -265,7 +281,17 @@ class UnifiNetworkCardEditor extends HTMLElement {
         this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));
       });
       this.appendChild(this._form);
+      // Erkannte Port-Zuordnung (Gerät -> Port, PoE-, Download-, Upload-Sensor) in die Geräte-Einträge übernehmen
+      const row = document.createElement("div");
+      row.style.cssText = "margin-top:16px;display:flex;flex-direction:column;gap:8px;align-items:flex-start";
+      this._applyBtn = document.createElement("ha-button");
+      this._applyBtn.addEventListener("click", () => this._applyLinks());
+      this._status = document.createElement("div");
+      this._status.style.cssText = "font-size:.85em;color:var(--secondary-text-color)";
+      row.append(this._applyBtn, this._status);
+      this.appendChild(row);
     }
+    this._applyBtn.textContent = localize(this._hass)("e_apply");
     // hass wird bei jeder Zustandsänderung neu gesetzt: nur die Referenz weiterreichen.
     this._form.hass = this._hass;
 

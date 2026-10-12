@@ -109,6 +109,10 @@ deaktiviert) und je Port **Download/Upload/PoE Power** (standardmäßig deaktivi
 heißen „{Portname} Download/Upload“. Erkannt wird der Port über den Namen „Port N“. Hast du Ports in UniFi umbenannt,
 gib die Sensoren am Gerät direkt an (`poe_entity`, `down_entity`, `up_entity`).
 
+**Editor-Button „Erkannte Zuordnung übernehmen“:** trägt die erkannte Zuordnung (übergeordnetes Gerät, Port und bei einem
+Port die Sensoren für PoE, Download und Upload) in die Geräte-Einstellungen ein. Es werden nur leere Felder gefüllt. Gelöschte
+Einträge übernimmt der Button beim nächsten Klick erneut.
+
 **Automatische Port-Zuordnung:** Die Sensoren „Port N Link Speed“ von Network+ nennen das angeschlossene Gerät
 (`connected_mac` / `connected_device`). Die Karte ordnet damit APs, Kameras und Switches automatisch dem richtigen
 Port (und bei mehreren Ports zum selben Gerät einer Link Aggregation) sowie dem richtigen Uplink zu. Voraussetzung:

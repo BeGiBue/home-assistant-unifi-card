@@ -16,6 +16,7 @@ import {
   downsample,
   sparkline,
   detectLinks,
+  buildAutoDeviceEntries,
 } from "../src/utils.js";
 
 test("typeOf erkennt UniFi-Modelle", () => {
@@ -208,4 +209,38 @@ test("detectLinks ordnet Geräte über die Link-Speed-Sensoren den Ports zu", ()
   assert.deepEqual(out.ap, { parent: "sw", ports: [5] });
   assert.deepEqual(out.nas, { parent: "sw", ports: [6, 9] }); // Link Aggregation
   assert.equal(out.gw, undefined);
+});
+
+test("buildAutoDeviceEntries füllt nur leere Felder und lässt LAG-Entitäten weg", () => {
+  const list = [
+    { id: "sw", name: "Keller", model: "US16P150" },
+    { id: "ap", name: "Werkstatt", model: "U7PG2", connections: [["mac", "aa:00"]] },
+    { id: "nas", name: "NAS", model: "Foo" },
+  ];
+  const e = (id, device_id) => ({ entity_id: id, device_id });
+  const byDevice = {
+    sw: [e("sensor.sw_p5_link", "sw"), e("sensor.sw_p5_poe", "sw"), e("sensor.sw_p5_dl", "sw"), e("sensor.sw_p5_ul", "sw"), e("sensor.sw_p6_link", "sw"), e("sensor.sw_p7_link", "sw")],
+    ap: [],
+    nas: [],
+  };
+  const st = (n, a = {}) => ({ state: "1", attributes: { friendly_name: n, ...a } });
+  const states = {
+    "sensor.sw_p5_link": st("Keller Port 5 Link Speed", { connected_mac: "AA:00" }),
+    "sensor.sw_p5_poe": st("Keller Port 5 PoE Power", { device_class: "power" }),
+    "sensor.sw_p5_dl": st("Keller Port 5 Download", { device_class: "data_rate" }),
+    "sensor.sw_p5_ul": st("Keller Port 5 Upload", { device_class: "data_rate" }),
+    "sensor.sw_p6_link": st("Keller Port 6 Link Speed", { connected_device: "NAS" }),
+    "sensor.sw_p7_link": st("Keller Port 7 Link Speed", { connected_device: "NAS" }),
+  };
+  const r = buildAutoDeviceEntries(list, byDevice, states, [{ device: "ap", down_entity: "sensor.eigen" }]);
+  const ap = r.devices.find((d) => d.device === "ap");
+  assert.equal(ap.down_entity, "sensor.eigen"); // Nutzerwert bleibt
+  assert.equal(ap.up_entity, "sensor.sw_p5_dl"); // RX/„Download“ am Port = Upload des Geräts
+  assert.equal(ap.poe_entity, "sensor.sw_p5_poe");
+  assert.equal(ap.switch_port, "5");
+  const nas = r.devices.find((d) => d.device === "nas");
+  assert.deepEqual(nas, { device: "nas", parent: "sw", switch_port: "6, 7" });
+  assert.equal(r.changed, 2);
+  // Zweiter Lauf ändert nichts mehr
+  assert.equal(buildAutoDeviceEntries(list, byDevice, states, r.devices).changed, 0);
 });

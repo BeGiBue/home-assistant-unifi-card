@@ -249,6 +249,49 @@ export function detectLinks(devices, states) {
   return out;
 }
 
+/**
+ * Erkannte Port-Zuordnung als Geräte-Einträge für die Konfiguration (Editor-Button).
+ * Es werden nur leere Felder gefüllt; was der Nutzer selbst eingetragen hat, bleibt unverändert.
+ * Bei Link Aggregation (mehrere Ports) werden nur Eltern und Ports eingetragen – die Karte addiert die Ports selbst.
+ * Ergebnis: { devices: neue devices[]-Liste, changed: Anzahl betroffener Geräte }
+ */
+export function buildAutoDeviceEntries(list, byDevice, states, existing = []) {
+  const devs = list.map((d) => ({
+    id: d.id,
+    name: d.name_by_user || d.name || "",
+    type: typeOf(d.model || ""),
+    mac: ((d.connections || []).find((c) => c && c[0] === "mac") || [])[1] || "",
+    entityIds: (byDevice[d.id] || []).map((e) => e.entity_id),
+  }));
+  const links = detectLinks(devs, states);
+  const out = (existing || []).map((e) => ({ ...e }));
+  let changed = 0;
+  Object.entries(links).forEach(([cid, l]) => {
+    const parentStates = (byDevice[l.parent] || []).map((e) => states[e.entity_id]).filter(Boolean);
+    const wanted = { parent: l.parent, switch_port: l.ports.join(", ") };
+    if (l.ports.length === 1) {
+      const p = l.ports[0];
+      wanted.poe_entity = findPortEntity(parentStates, p, "poe")?.entity_id;
+      wanted.down_entity = findPortEntity(parentStates, p, "tx")?.entity_id;
+      wanted.up_entity = findPortEntity(parentStates, p, "rx")?.entity_id;
+    }
+    let entry = out.find((e) => e.device === cid);
+    if (!entry) {
+      entry = { device: cid };
+      out.push(entry);
+    }
+    let touched = false;
+    Object.entries(wanted).forEach(([k, v]) => {
+      if (v && (entry[k] === undefined || entry[k] === null || entry[k] === "")) {
+        entry[k] = v;
+        touched = true;
+      }
+    });
+    if (touched) changed++;
+  });
+  return { devices: out, changed };
+}
+
 /** Port-Angabe als Liste: 5, "5", "6, 7" oder [6, 7] -> [6, 7] (mehrere Ports = Link Aggregation) */
 export function parsePorts(value) {
   if (value === undefined || value === null || value === "") return [];
