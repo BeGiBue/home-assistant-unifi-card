@@ -189,3 +189,67 @@ test("Zweite Verbindung (LAN + WLAN): zweite Kachel, nicht doppelt gezaehlt", ()
   assert.match(html, /↓<\/b> 40 Mb\/s/); // WLAN-Verbindung über eigene Sensoren
   assert.match(html, /4\/4 Online/); // Gateway, Switch, AP, Mac – die zweite Kachel zählt nicht mit
 });
+
+const restartHass = {
+  ...hass,
+  entities: {
+    ...hass.entities,
+    "button.sw_restart": ent("button.sw_restart", "sw"),
+    "sensor.gw_cloudflare_wan_latency": ent("sensor.gw_cloudflare_wan_latency", "gw"),
+    "sensor.gw_google_wan_latency": ent("sensor.gw_google_wan_latency", "gw"),
+  },
+  states: withIds({
+    ...hass.states,
+    "button.sw_restart": state("unknown", { friendly_name: "Switch Keller Restart", device_class: "restart" }),
+    "sensor.gw_cloudflare_wan_latency": state("12.4", { friendly_name: "Gateway Cloudflare WAN latency", unit_of_measurement: "ms" }),
+    "sensor.gw_google_wan_latency": state("9", { friendly_name: "Gateway Google WAN latency", unit_of_measurement: "ms" }),
+  }),
+};
+
+test("Neustart-Button wird am Gerät erkannt und lässt sich abschalten", () => {
+  const card = new Card();
+  card.setConfig({});
+  card.hass = restartHass;
+  const html = card.shadowRoot.innerHTML;
+  assert.equal((html.match(/class="rs"/g) || []).length, 1);
+  assert.match(html, /data-entity="button.sw_restart"/);
+  const off = new Card();
+  off.setConfig({ show_restart: false });
+  off.hass = restartHass;
+  assert.doesNotMatch(off.shadowRoot.innerHTML, /class="rs"/);
+});
+
+test("Neustart verlangt Bestätigung, erst danach wird button.press ausgelöst", () => {
+  const calls = [];
+  const card = new Card();
+  card.setConfig({});
+  card.hass = { ...restartHass, callService: (...a) => calls.push(a) };
+  card._confirm = { entity: "button.sw_restart", name: "Switch <Keller>" };
+  card._update();
+  assert.match(card.shadowRoot.innerHTML, /class="dlg"/);
+  assert.match(card.shadowRoot.innerHTML, /Switch &lt;Keller&gt; wirklich neu starten\?/);
+  assert.equal(calls.length, 0);
+});
+
+test("Ping-Sensoren werden automatisch erkannt, benannt und als Verlauf gezeichnet", async () => {
+  const card = new Card();
+  card.setConfig({});
+  card.hass = {
+    ...restartHass,
+    callWS: async () => ({
+      "sensor.gw_cloudflare_wan_latency": [{ s: "10" }, { s: "14" }, { s: "12" }],
+      "sensor.gw_google_wan_latency": [],
+    }),
+  };
+  await new Promise((r) => setTimeout(r, 5));
+  const html = card.shadowRoot.innerHTML;
+  assert.match(html, /<div class="pn">Cloudflare<\/div>/);
+  assert.match(html, /<div class="pn">Google<\/div>/);
+  assert.match(html, /12,4 ms/);
+  assert.equal((html.match(/class="sp"/g) || []).length, 1); // nur Cloudflare hat einen Verlauf
+  assert.match(html, /mdi:cloud-outline/);
+  const off = new Card();
+  off.setConfig({ show_latency: false });
+  off.hass = restartHass;
+  assert.doesNotMatch(off.shadowRoot.innerHTML, /class="ping"/);
+});

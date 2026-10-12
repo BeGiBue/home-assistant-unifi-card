@@ -13,6 +13,8 @@ import {
   isNetworkDevice,
   collectUnifiDevices,
   parsePorts,
+  downsample,
+  sparkline,
 } from "../src/utils.js";
 
 test("typeOf erkennt UniFi-Modelle", () => {
@@ -154,4 +156,13 @@ test("parsePorts versteht Zahl, Text und Liste (Link Aggregation)", () => {
   assert.deepEqual(parsePorts(""), []);
   assert.deepEqual(parsePorts(undefined), []);
   assert.deepEqual(parsePorts("abc"), []);
+});
+
+test("downsample und sparkline", () => {
+  assert.deepEqual(downsample([1, 2, 3], 10), [1, 2, 3]);
+  assert.equal(downsample(Array.from({ length: 1000 }, (_, i) => i), 100).length, 100);
+  assert.equal(sparkline([1]), null);
+  const sp = sparkline([1, 3, 2], 100, 30, 2);
+  assert.match(sp.line, /^M0\.0,28\.0 L50\.0,2\.0 L100\.0,15\.0$/);
+  assert.match(sp.area, /Z$/);
 });

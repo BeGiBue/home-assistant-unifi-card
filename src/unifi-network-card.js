@@ -13,6 +13,8 @@ import {
   resolveParents,
   collectUnifiDevices,
   parsePorts,
+  downsample,
+  sparkline,
 } from "./utils.js";
 import "./unifi-network-card-editor.js";
 
@@ -66,12 +68,17 @@ class UnifiNetworkCard extends HTMLElement {
       show_legend: true,
       auto_parent: true,
       show_clients: true,
+      show_restart: true,
+      show_latency: true,
+      latency_entities: [],
       devices: [],
       external_devices: [],
       ...config,
     };
     this._sig = "";
     this._devRef = null;
+    this._histKey = null;
+    this._confirm = null;
     this._update();
   }
 
@@ -186,6 +193,98 @@ class UnifiNetworkCard extends HTMLElement {
     return s ? Number(s.state) : null;
   }
 
+  /** Neustart-Button (button.press) eines Geräts: Konfiguration oder Auto-Erkennung */
+  _restart(d) {
+    if (this._config.show_restart === false || d.secondary) return null;
+    const st = this._hass.states;
+    const own = d.cfg?.restart_entity;
+    if (own) return st[own] ? own : null;
+    if (d.external) return null;
+    const s = d.entityIds
+      .map((id) => st[id])
+      .filter(Boolean)
+      .find((x) => x.entity_id.startsWith("button.") && (x.attributes?.device_class === "restart" || /restart|neustart/i.test(x.entity_id)));
+    return s ? s.entity_id : null;
+  }
+
+  /** WAN-Latenz-/Ping-Sensoren: konfiguriert oder automatisch an den UniFi-Geräten erkannt */
+  _latency() {
+    const cfg = this._config;
+    if (cfg.show_latency === false) return [];
+    const st = this._hass.states;
+    let defs = (cfg.latency_entities || [])
+      .map((x) => (typeof x === "string" ? { entity: x } : x))
+      .filter((x) => x && x.entity);
+    if (!defs.length) {
+      this._devices
+        .filter((d) => !d.external)
+        .forEach((d) =>
+          d.entityIds.forEach((id) => {
+            if (id.startsWith("sensor.") && /latency/i.test(id) && st[id]) defs.push({ entity: id, dev: d.name });
+          })
+        );
+    }
+    return defs
+      .map((x) => {
+        const s = st[x.entity];
+        if (!s) return null;
+        const fn = s.attributes?.friendly_name || x.entity;
+        let name = x.name;
+        if (!name) {
+          name = fn;
+          if (x.dev && name.toLowerCase().startsWith(x.dev.toLowerCase())) name = name.slice(x.dev.length);
+          name = name.replace(/\s*(wan\s*)?latency\s*$/i, "").replace(/^\s*(wan\s*)?latency\s*/i, "").trim() || fn;
+        }
+        const guess = /cloudflare/i.test(name) ? "mdi:cloud-outline" : /google/i.test(name) ? "mdi:google" : /microsoft/i.test(name) ? "mdi:microsoft" : null;
+        const n = Number(s.state);
+        return {
+          entity: x.entity,
+          name,
+          icon: x.icon || s.attributes?.icon || guess || "mdi:network-outline",
+          value: Number.isFinite(n) && s.state !== "" ? n : null,
+          unit: s.attributes?.unit_of_measurement || "ms",
+          hist: (this._hist && this._hist[x.entity]) || [],
+        };
+      })
+      .filter(Boolean);
+  }
+
+  /** Verlauf der Latenz-Sensoren über die History-API laden (höchstens alle 5 Minuten) */
+  _loadHistory(list) {
+    const ids = list.map((l) => l.entity);
+    if (!ids.length || !this._hass?.callWS) return;
+    const hours = Number(this._config.latency_hours) || 24;
+    const key = `${ids.join(",")}|${hours}`;
+    const now = Date.now();
+    if (this._histKey === key && now - this._histAt < 300000) return;
+    this._histKey = key;
+    this._histAt = now;
+    Promise.resolve(
+      this._hass.callWS({
+        type: "history/history_during_period",
+        start_time: new Date(now - hours * 3600000).toISOString(),
+        end_time: new Date(now).toISOString(),
+        entity_ids: ids,
+        minimal_response: true,
+        no_attributes: true,
+        significant_changes_only: false,
+      })
+    )
+      .then((res) => {
+        const out = {};
+        ids.forEach((id) => {
+          const rows = (res && res[id]) || [];
+          out[id] = downsample(rows.map((r) => Number(r.s ?? r.state)).filter(Number.isFinite), 120);
+        });
+        this._hist = out;
+        this._histVer = (this._histVer || 0) + 1;
+        this._update();
+      })
+      .catch(() => {
+        this._histKey = null; // beim nächsten Update erneut versuchen
+      });
+  }
+
   _flow(d, parent) {
     if (!parent) return null;
     const c = d.cfg || {};
@@ -230,7 +329,7 @@ class UnifiNetworkCard extends HTMLElement {
     const items = this._devices.map((d) => {
       const s = this._status(d);
       const flow = cfg.show_flows ? this._flow(d, byId[d.parent]) : null;
-      return { ...d, ...s, flow, clients: this._clients(d) };
+      return { ...d, ...s, flow, clients: this._clients(d), restart: this._restart(d) };
     });
     // PoE-Verbrauch pro Switch (Summe der Kinder)
     const used = {};
@@ -251,7 +350,8 @@ class UnifiNetworkCard extends HTMLElement {
       up: real.filter((d) => byId[d.parent]?.type === "gateway").reduce((a, d) => a + (d.flow?.up || 0), 0),
       hasUplink: real.some((d) => byId[d.parent]?.type === "gateway" && (d.flow?.down != null || d.flow?.up != null)),
     };
-    return { items: visible, summary };
+    const latency = this._latency();
+    return { items: visible, summary, latency };
   }
 
   _update() {
@@ -260,9 +360,13 @@ class UnifiNetworkCard extends HTMLElement {
       return;
     }
     const model = this._model();
+    this._loadHistory(model.latency);
     const sig = JSON.stringify([
-      model.items.map((d) => [d.id, d.name, d.online, d.update, d.flow, d.poeUsed, d.poeBudget, d.cfg?.image, d.clients, d.secondary]),
+      model.items.map((d) => [d.id, d.name, d.online, d.update, d.flow, d.poeUsed, d.poeBudget, d.cfg?.image, d.clients, d.secondary, d.restart]),
       model.summary,
+      model.latency.map((l) => [l.entity, l.name, l.icon, l.value, l.unit]),
+      this._histVer,
+      this._confirm,
       this._config,
       this._hass.locale?.language,
     ]);
@@ -335,6 +439,9 @@ class UnifiNetworkCard extends HTMLElement {
       ? `<div class="budget"><div class="bar"><div style="width:${pct.toFixed(1)}%"></div></div><div class="txt">${esc(t("poe"))} ${esc(formatPower(d.poeUsed, locale))} / ${esc(formatPower(d.poeBudget, locale))}</div></div>`
       : "";
     const clients = d.clients != null ? `<div class="cl" title="${esc(t("clients"))}">${USERS} ${esc(d.clients)}</div>` : "";
+    const restart = d.restart
+      ? `<button class="rs" type="button" data-entity="${esc(d.restart)}" data-name="${esc(d.name)}" title="${esc(t("restart"))}" aria-label="${esc(t("restart"))}: ${esc(d.name)}"><ha-icon icon="mdi:restart"></ha-icon></button>`
+      : "";
     const visual = d.external && d.cfg.icon ? `<ha-icon icon="${esc(d.cfg.icon)}"></ha-icon>` : `<div class="fb">${icon}</div>`;
     const meta = inGrid && d.flow ? `<div class="meta">${this._chip(d.flow, t, locale)}</div>` : "";
     return `
@@ -342,6 +449,7 @@ class UnifiNetworkCard extends HTMLElement {
         <div class="img">
           ${img ? `<img src="${esc(img)}" alt="${esc(d.model)}" loading="lazy"><div class="fb" hidden>${icon}</div>` : visual}
           <span class="dot"></span>
+          ${restart}
           ${d.update ? `<span class="upd" title="${esc(t("update"))}">${ARROW}</span>` : ""}
         </div>
         <div class="name">${esc(d.name)}</div>
@@ -365,6 +473,29 @@ class UnifiNetworkCard extends HTMLElement {
       if (!group.length) return "";
       return `<h3>${esc(t(type))} (${group.length})</h3><div class="grid">${group.map((d) => this._tile(d, locale, t, true)).join("")}</div>`;
     }).join("");
+  }
+
+  _latencyHtml(list, locale, t) {
+    if (!list || !list.length) return "";
+    const fmt = (l) =>
+      l.value === null ? "–" : `${new Intl.NumberFormat(locale || undefined, { maximumFractionDigits: 1 }).format(l.value)} ${l.unit}`;
+    const cells = list
+      .map((l) => {
+        const sp = sparkline(l.hist);
+        const svg = sp
+          ? `<svg class="sp" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true"><path class="sa" d="${sp.area}"/><path class="sl" d="${sp.line}" vector-effect="non-scaling-stroke"/></svg>`
+          : "";
+        return `<div class="pg" data-entity="${esc(l.entity)}" role="button" tabindex="0" title="${esc(l.entity)}">${svg}<div class="pc"><ha-icon icon="${esc(l.icon)}"></ha-icon><div class="pn">${esc(l.name)}</div><div class="pv">${esc(fmt(l))}</div></div></div>`;
+      })
+      .join("");
+    return `<h3 class="ph">${esc(t("ping"))}</h3><div class="ping">${cells}</div>`;
+  }
+
+  _confirmHtml(t) {
+    const c = this._confirm;
+    if (!c) return "";
+    const text = t("restart_confirm").replace("{name}", () => esc(c.name));
+    return `<div class="dlg" role="alertdialog" aria-modal="true"><div class="box"><p>${text}</p><div class="acts"><button type="button" data-act="cancel">${esc(t("cancel"))}</button><button type="button" class="danger" data-act="ok">${esc(t("restart_do"))}</button></div></div></div>`;
   }
 
   _render(model) {
@@ -400,7 +531,7 @@ class UnifiNetworkCard extends HTMLElement {
     this.shadowRoot.innerHTML = `
       <style>${styles}</style>
       <ha-card class="${cfg.animate_flows ? "anim" : ""}" style="${esc(vars)}">
-        ${header}${body}${legend}
+        ${header}${body}${this._latencyHtml(model?.latency, locale, t)}${legend}${this._confirmHtml(t)}
       </ha-card>`;
 
     // Bild-Fallback ohne Inline-Handler
@@ -412,24 +543,44 @@ class UnifiNetworkCard extends HTMLElement {
       });
     });
 
-    const open = (el) => {
-      const d = this._devices.find((x) => x.id === el.dataset.id);
-      const entityId = d && (d.entityIds.find((e) => e.startsWith("device_tracker.")) || d.entityIds[0]);
-      if (entityId) {
-        const ev = new Event("hass-more-info", { bubbles: true, composed: true });
-        ev.detail = { entityId };
-        this.dispatchEvent(ev);
-      }
+    const moreInfo = (entityId) => {
+      if (!entityId) return;
+      const ev = new Event("hass-more-info", { bubbles: true, composed: true });
+      ev.detail = { entityId };
+      this.dispatchEvent(ev);
     };
-    this.shadowRoot.querySelectorAll(".tile").forEach((el) => {
-      el.addEventListener("click", () => open(el));
+    const bind = (el, fn) => {
+      el.addEventListener("click", fn);
       el.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" || e.key === " ") {
+        if (e.target === el && (e.key === "Enter" || e.key === " ")) {
           e.preventDefault();
-          open(el);
+          fn(e);
         }
       });
-    });
+    };
+    this.shadowRoot.querySelectorAll(".tile").forEach((el) =>
+      bind(el, () => {
+        const d = this._devices.find((x) => x.id === el.dataset.id);
+        moreInfo(d && (d.entityIds.find((e) => e.startsWith("device_tracker.")) || d.entityIds[0]));
+      })
+    );
+    this.shadowRoot.querySelectorAll(".pg").forEach((el) => bind(el, () => moreInfo(el.dataset.entity)));
+    // Neustart: erst nach Bestätigung wird button.press ausgelöst
+    this.shadowRoot.querySelectorAll(".rs").forEach((el) =>
+      el.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this._confirm = { entity: el.dataset.entity, name: el.dataset.name };
+        this._update();
+      })
+    );
+    this.shadowRoot.querySelectorAll(".dlg [data-act]").forEach((el) =>
+      el.addEventListener("click", () => {
+        const c = this._confirm;
+        this._confirm = null;
+        if (el.dataset.act === "ok" && c) this._hass.callService("button", "press", { entity_id: c.entity });
+        this._update();
+      })
+    );
   }
 }
 

@@ -5,6 +5,7 @@
 export const styles = `
   :host { display: block; }
   ha-card {
+    position: relative;
     padding: 16px;
     overflow-x: auto;
     --unifi-line: var(--divider-color, #3a3a3a);
@@ -100,4 +101,33 @@ export const styles = `
   .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 16px; font-size: .75em; color: var(--secondary-text-color); }
   .legend span { display: inline-flex; align-items: center; gap: 6px; }
   .legend i { display: inline-block; width: 4px; height: 12px; }
+
+  /* ---- Neustart ---- */
+  .rs {
+    position: absolute; top: -4px; left: -8px; width: 22px; height: 22px; padding: 0; border-radius: 50%; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; --mdc-icon-size: 14px;
+    border: 1px solid var(--unifi-line); background: var(--card-background-color, #fff); color: var(--secondary-text-color);
+  }
+  .rs:hover, .rs:focus-visible { color: var(--error-color, #f44336); border-color: var(--error-color, #f44336); }
+  .dlg { position: absolute; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center; padding: 16px;
+    background: color-mix(in srgb, var(--card-background-color, #000) 70%, transparent); border-radius: inherit; }
+  .dlg .box { background: var(--card-background-color, #fff); color: var(--primary-text-color); border: 1px solid var(--unifi-line);
+    border-radius: 12px; padding: 16px 20px; max-width: 320px; box-shadow: 0 4px 24px rgba(0,0,0,.35); }
+  .dlg p { margin: 0 0 16px; }
+  .dlg .acts { display: flex; justify-content: flex-end; gap: 8px; }
+  .dlg button { font: inherit; cursor: pointer; padding: 6px 14px; border-radius: 8px; border: 1px solid var(--unifi-line);
+    background: transparent; color: var(--primary-text-color); }
+  .dlg button.danger { background: var(--error-color, #f44336); border-color: var(--error-color, #f44336); color: var(--text-primary-color, #fff); }
+
+  /* ---- Ping / Latenz ---- */
+  .ping { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+  .pg { position: relative; overflow: hidden; cursor: pointer; border-radius: var(--ha-card-border-radius, 12px); background: var(--unifi-tile); min-height: 64px; }
+  .pg:hover { filter: brightness(1.08); }
+  .pg .sp { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .pg .sa { fill: color-mix(in srgb, var(--primary-color, #03a9f4) 16%, transparent); }
+  .pg .sl { fill: none; stroke: var(--primary-color, #03a9f4); stroke-width: 1.5; opacity: .8; }
+  .pc { position: relative; display: grid; grid-template-columns: auto 1fr; column-gap: 10px; align-items: center; padding: 10px 12px; --mdc-icon-size: 22px; }
+  .pc ha-icon { grid-row: span 2; color: var(--primary-text-color); }
+  .pn { font-size: .85em; font-weight: 500; color: var(--primary-text-color); }
+  .pv { font-size: .8em; color: var(--primary-text-color); font-variant-numeric: tabular-nums; }
 `;

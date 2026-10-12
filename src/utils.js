@@ -189,3 +189,28 @@ export function parsePorts(value) {
   const ports = raw.map((x) => Number(x)).filter((n) => Number.isFinite(n) && n > 0);
   return [...new Set(ports)];
 }
+
+/** Reduziert eine Messreihe auf höchstens n Punkte (Mittelwert je Abschnitt). */
+export function downsample(values, n = 120) {
+  const v = (values || []).filter(Number.isFinite);
+  if (v.length <= n) return v;
+  const step = v.length / n;
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const chunk = v.slice(Math.floor(i * step), Math.floor((i + 1) * step) || undefined);
+    if (chunk.length) out.push(chunk.reduce((a, b) => a + b, 0) / chunk.length);
+  }
+  return out;
+}
+
+/** SVG-Pfade (Linie und Fläche) für einen kleinen Verlaufsgraphen. */
+export function sparkline(values, w = 100, h = 30, pad = 2) {
+  const v = (values || []).filter(Number.isFinite);
+  if (v.length < 2) return null;
+  const min = Math.min(...v);
+  const max = Math.max(...v);
+  const span = max - min || 1;
+  const pts = v.map((y, i) => [(i / (v.length - 1)) * w, h - pad - ((y - min) / span) * (h - 2 * pad)]);
+  const line = "M" + pts.map((p) => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" L");
+  return { line, area: `${line} L${w},${h} L0,${h} Z`, min, max };
+}

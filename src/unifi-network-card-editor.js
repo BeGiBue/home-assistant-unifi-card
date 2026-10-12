@@ -85,6 +85,8 @@ class UnifiNetworkCardEditor extends HTMLElement {
           { name: "show_summary", selector: { boolean: {} } },
           { name: "show_legend", selector: { boolean: {} } },
           { name: "show_clients", selector: { boolean: {} } },
+          { name: "show_restart", selector: { boolean: {} } },
+          { name: "show_latency", selector: { boolean: {} } },
           { name: "auto_parent", selector: { boolean: {} } },
         ],
       },
@@ -109,6 +111,22 @@ class UnifiNetworkCardEditor extends HTMLElement {
         name: "",
         title: t("e_images"),
         schema: [{ name: "image_base", selector: { text: {} } }],
+      },
+      { name: "latency_hours", selector: { number: { min: 1, max: 168, unit_of_measurement: "h", mode: "box" } } },
+      {
+        name: "latency_entities",
+        selector: {
+          object: {
+            multiple: true,
+            label_field: "name",
+            description_field: "entity",
+            fields: {
+              entity: { label: t("e_latency_entity"), required: true, selector: { entity: { filter: { domain: "sensor" } } } },
+              name: { label: t("e_latency_name"), selector: { text: {} } },
+              icon: { label: t("e_latency_icon"), selector: { icon: {} } },
+            },
+          },
+        },
       },
       {
         name: "devices",
@@ -137,6 +155,7 @@ class UnifiNetworkCardEditor extends HTMLElement {
               },
               poe_budget: { label: t("e_poe_budget"), selector: { number: { min: 0, max: 5000, unit_of_measurement: "W", mode: "box" } } },
               link_type: { label: t("e_link_type"), selector: { select: { mode: "dropdown", options: linkTypes } } },
+              restart_entity: { label: t("e_restart_entity"), selector: { entity: { filter: { domain: "button" } } } },
               clients_entity: {
                 label: t("e_clients_entity"),
                 selector: { entity: { filter: { domain: "sensor" } } },
@@ -161,6 +180,7 @@ class UnifiNetworkCardEditor extends HTMLElement {
               switch_port: { label: t("e_switch_port"), selector: { text: {} } },
               link_type: { label: t("e_link_type"), selector: { select: { mode: "dropdown", options: linkTypes } } },
               entity: { label: t("e_ext_entity"), selector: { entity: {} } },
+              restart_entity: { label: t("e_restart_entity"), selector: { entity: { filter: { domain: "button" } } } },
               poe_entity: {
                 label: t("e_poe_entity"),
                 selector: { entity: { filter: { domain: "sensor", device_class: "power" } } },
@@ -210,6 +230,10 @@ class UnifiNetworkCardEditor extends HTMLElement {
       devices: "e_devices",
       external_devices: "e_external",
       show_clients: "e_show_clients",
+      show_restart: "e_show_restart",
+      show_latency: "e_show_latency",
+      latency_entities: "e_latency",
+      latency_hours: "e_latency_hours",
     }[schema.name];
     return key ? t(key) : schema.name;
   };
@@ -257,6 +281,8 @@ class UnifiNetworkCardEditor extends HTMLElement {
         show_legend: true,
         auto_parent: true,
         show_clients: true,
+        show_restart: true,
+        show_latency: true,
         ...this._config,
       };
     }

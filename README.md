@@ -8,6 +8,7 @@ Gateway → Switches → Access Points / Kameras, mit Geräte-Bildern sowie **Da
 - **Visueller Editor** mit nativen HA-Selektoren (Geräte-, Entitäts-, Farb-Auswahl), YAML bleibt möglich
 - Animierte Linien: PoE-Leistung, Download, Upload je Verbindung, PoE-Budget je Switch
 - Status (online/offline), Update-Hinweis, Klick öffnet die Geräte-Details
+- **Neustart-Buttons** an den Geräten (mit Bestätigung) und **Ping/Latenz** der WAN-Ziele mit 24-h-Verlauf
 
 ## Installation
 
@@ -75,6 +76,10 @@ devices:
 | `show_summary` | `true` | Zusammenfassung im Kopf (Online, PoE, Down/Up) |
 | `show_legend` | `true` | Legende unter der Topologie |
 | `show_clients` | `true` | Anzahl verbundener Geräte an Access Points und Switches anzeigen |
+| `show_restart` | `true` | Neustart-Button an Geräten mit Restart-Entität anzeigen |
+| `show_latency` | `true` | Ping-/Latenz-Sensoren anzeigen |
+| `latency_entities[]` | automatisch | Eigene Latenz-Sensoren (`entity`, `name`, `icon`) |
+| `latency_hours` | `24` | Zeitraum des Verlaufs in Stunden |
 | `external_devices[]` | – | Geräte außerhalb von UniFi manuell anzeigen (siehe unten) |
 | `auto_parent` | `true` | Hierarchie automatisch ableiten, wenn Home Assistant sie nicht liefert (siehe unten) |
 | `image_base` | – | Ordner mit Geräte-Bildern, Dateiname `{Modell}.png` (Leerzeichen → `-`) |
@@ -82,7 +87,7 @@ devices:
 | `devices[]` | – | Einstellungen pro Gerät, siehe unten |
 
 `devices[]`-Felder: `device` (Pflicht), `name`, `image`, `parent`, `switch_port`, `poe_entity`, `down_entity`,
-`up_entity`, `poe_budget`, `clients_entity`.
+`up_entity`, `poe_budget`, `clients_entity`, `restart_entity`.
 
 ## Verbundene Geräte
 
@@ -91,6 +96,28 @@ UniFi-Integration dafür einen Sensor liefert (Name enthält „Clients“, z. B
 Fehlt er oder soll ein anderer Sensor gelten, wählst du ihn pro Gerät unter `devices[].clients_entity`
 (auch ein Template-Sensor ist möglich, z. B. für zusammengefasste Verbindungen). Abschalten mit
 `show_clients: false`.
+
+## Neustart
+
+Hat ein Gerät in der UniFi-Integration einen Neustart-Button (z. B. `button.keller_restart`), erscheint oben links an
+der Kachel ein kleines Neustart-Symbol. Ein Klick fragt „… wirklich neu starten?“ – erst nach Bestätigung wird
+`button.press` aufgerufen. Die Erkennung ist automatisch; mit `devices[].restart_entity` (auch bei externen Geräten)
+wählst du einen anderen Button, mit `show_restart: false` blendest du alles aus. Der Button muss in Home Assistant
+aktiviert sein.
+
+## Ping / Latenz
+
+Unter der Topologie zeigt die Karte die WAN-Latenz-Sensoren des Gateways (z. B.
+`sensor.ucg_ultra_cloudflare_wan_latency`) mit aktuellem Wert und Verlaufsgraph (`latency_hours`, Standard 24 h;
+Daten aus dem Home-Assistant-Verlauf). Name und Symbol werden aus dem Sensor abgeleitet (Cloudflare, Google,
+Microsoft bekommen passende Symbole). Eigene Auswahl:
+
+```yaml
+latency_entities:
+  - entity: sensor.ucg_ultra_cloudflare_wan_latency
+    name: Cloudflare
+    icon: mdi:cloud-outline
+```
 
 ## Externe Geräte
 
