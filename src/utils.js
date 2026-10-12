@@ -77,6 +77,8 @@ export function formatPower(watt, locale) {
 export function findPortEntity(states, port, kind, opts = {}) {
   if (port === undefined || port === null || port === "") return undefined;
   const wantClass = kind === "poe" ? "power" : "data_rate";
+  const sensorKind = ["poe", "rx", "tx"].includes(kind);
+  const domain = { poe_switch: "switch", cycle: "button" }[kind] || "sensor";
   // Port mit eigenem Namen (z. B. "NAS"): über Gerätenamen und Sensor-Art zuordnen
   if (typeof port === "string" && !/^\d+$/.test(port)) {
     const want = port.trim().toLowerCase();
@@ -84,7 +86,7 @@ export function findPortEntity(states, port, kind, opts = {}) {
       const k = portSensorKey(s, opts);
       if (!k || k.kind !== kind) return false;
       const dc = s.attributes?.device_class;
-      return k.label.toLowerCase() === want && (!dc || dc === wantClass);
+      return k.label.toLowerCase() === want && (!sensorKind || !dc || dc === wantClass);
     });
   }
   const portRe = new RegExp(`(?:port|anschluss)[\\s_]*0*${Number(port)}(?!\\d)`, "i");
@@ -92,21 +94,33 @@ export function findPortEntity(states, port, kind, opts = {}) {
     poe: /poe/i,
     rx: /(^|[\s_])rx([\s_]|$)|download|empfang/i,
     tx: /(^|[\s_])tx([\s_]|$)|upload|sende/i,
+    poe_switch: /poe/i,
+    cycle: /power[\s_-]*cycle|stromzyklus/i,
   }[kind];
   return states.find((s) => {
+    if (!String(s.entity_id).startsWith(`${domain}.`)) return false;
     const name = `${s.attributes?.friendly_name || ""} ${s.entity_id}`;
     if (!portRe.test(name) || !kindRe.test(name)) return false;
     const dc = s.attributes?.device_class;
-    return !dc || dc === wantClass;
+    return !sensorKind || !dc || dc === wantClass;
   });
 }
 
-const PORT_TK = { port_link_speed: "link", port_poe_power: "poe", port_download: "rx", port_upload: "tx" };
+const PORT_TK = {
+  port_link_speed: "link",
+  port_poe_power: "poe",
+  port_download: "rx",
+  port_upload: "tx",
+  port_poe_switch: "poe_switch",
+  power_cycle_port: "cycle",
+};
 const PORT_SUFFIX = [
-  ["link", /\s*(link[\s-]*speed|verbindungsgeschwindigkeit)$/i],
-  ["poe", /\s*poe[\s-]*(power|leistung)$/i],
-  ["rx", /\s*download$/i],
-  ["tx", /\s*upload$/i],
+  ["sensor", "link", /\s*(link[\s-]*speed|verbindungsgeschwindigkeit)$/i],
+  ["sensor", "poe", /\s*poe[\s-]*(power|leistung)$/i],
+  ["sensor", "rx", /\s*download$/i],
+  ["sensor", "tx", /\s*upload$/i],
+  ["switch", "poe_switch", /\s*poe$/i],
+  ["button", "cycle", /\s*(power[\s-]*cycle|stromzyklus)$/i],
 ];
 
 /**
@@ -115,13 +129,14 @@ const PORT_SUFFIX = [
  * opts: { deviceName, entities } – entities = hass.entities (translation_key macht die Art sprachunabhängig)
  */
 export function portSensorKey(s, opts = {}) {
-  if (!s || !String(s.entity_id).startsWith("sensor.")) return null;
+  if (!s) return null;
+  const domain = String(s.entity_id).split(".")[0];
   let name = String(s.attributes?.friendly_name || "").trim();
   const dn = String(opts.deviceName || "").trim();
   if (dn && name.toLowerCase().startsWith(dn.toLowerCase())) name = name.slice(dn.length).trim();
   const tk = PORT_TK[opts.entities?.[s.entity_id]?.translation_key];
-  for (const [kind, re] of PORT_SUFFIX) {
-    if (re.test(name) && (!tk || tk === kind)) return { kind, label: name.replace(re, "").trim() };
+  for (const [dom, kind, re] of PORT_SUFFIX) {
+    if (dom === domain && re.test(name) && (!tk || tk === kind)) return { kind, label: name.replace(re, "").trim() };
   }
   return null;
 }
@@ -415,4 +430,34 @@ export function sparkline(values, w = 100, h = 30, pad = 2) {
   const pts = v.map((y, i) => [(i / (v.length - 1)) * w, h - pad - ((y - min) / span) * (h - 2 * pad)]);
   const line = "M" + pts.map((p) => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" L");
   return { line, area: `${line} L${w},${h} L0,${h} Z`, min, max };
+}
+
+/** Dauer in Sekunden als kurzer Text: "3 T 4 Std 12 Min" / "3d 4h 12m" */
+export function formatDuration(seconds, lang = "en") {
+  const s = Math.max(0, Math.floor(Number(seconds)));
+  if (!Number.isFinite(s)) return "–";
+  const u = String(lang).startsWith("de") ? { d: "T", h: "Std", m: "Min" } : { d: "d", h: "h", m: "m" };
+  const d = Math.floor(s / 86400);
+  const h = Math.floor((s % 86400) / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sep = String(lang).startsWith("de") ? " " : "";
+  const parts = [];
+  if (d) parts.push(`${d}${sep}${u.d}`);
+  if (d || h) parts.push(`${h}${sep}${u.h}`);
+  parts.push(`${m}${sep}${u.m}`);
+  return parts.join(" ");
+}
+
+/** Betriebszeit eines Geräts in Sekunden aus einem Uptime-Sensor (Zeitstempel oder Dauer); null wenn unbekannt */
+export function uptimeSeconds(stateObj, now = Date.now()) {
+  if (!stateObj || ["unavailable", "unknown", ""].includes(stateObj.state)) return null;
+  const a = stateObj.attributes || {};
+  if (a.device_class === "timestamp" || /^\d{4}-\d{2}-\d{2}T/.test(stateObj.state)) {
+    const t = Date.parse(stateObj.state);
+    return Number.isFinite(t) ? Math.max(0, (now - t) / 1000) : null;
+  }
+  const n = Number(stateObj.state);
+  if (!Number.isFinite(n)) return null;
+  const f = { s: 1, min: 60, h: 3600, d: 86400 }[String(a.unit_of_measurement || "s").toLowerCase()] ?? 1;
+  return n * f;
 }

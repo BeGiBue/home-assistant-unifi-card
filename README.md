@@ -132,6 +132,15 @@ immer Vorrang. Gleichrangige Geräte (zwei Switches) ordnest du weiterhin per `p
 Hinweis zur Richtung: „Download“ eines Ports ist der Empfang am Switch, also der **Upload des angeschlossenen Geräts**.
 Die Karte berücksichtigt das. Zeigt sie bei dir die Pfeile vertauscht, schalte `swap_port_direction: true` ein.
 
+## Geräte-Fenster und PoE-Steuerung
+
+- **Klick auf ein Gerät** öffnet ein kleines Fenster mit Status, IP-Adresse, Betriebszeit und Neustart (mit Rückfrage), ohne
+  Sensor-Details. Die IP stammt aus `devices[].ip`, einem Tracker-Attribut oder (UniFi Network+) vom Switch-Port des Uplinks.
+  Die Betriebszeit kommt aus einem Uptime-Sensor des Geräts und entfällt, wenn es keinen gibt.
+- **Klick auf eine Verbindung** bietet für den Port **PoE ausschalten/einschalten** (Schalter „Port PoE“) und **PoE neu starten**
+  (Button „Power Cycle“) an. Beides sind Entitäten des übergeordneten Switches, in Home Assistant standardmäßig deaktiviert und
+  nur mit Admin-Rechten nutzbar. Mit `poe_switch_entity` und `poe_cycle_entity` gibst du sie am Gerät direkt an.
+
 ## Neustart
 
 Hat ein Gerät in der UniFi-Integration einen Neustart-Button (z. B. `button.keller_restart`), erscheint oben links an

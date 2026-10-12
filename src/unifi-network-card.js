@@ -16,6 +16,8 @@ import {
   downsample,
   sparkline,
   detectLinks,
+  formatDuration,
+  uptimeSeconds,
 } from "./utils.js";
 import "./unifi-network-card-editor.js";
 
@@ -389,6 +391,51 @@ class UnifiNetworkCard extends HTMLElement {
     return { ...base, poe: power !== null && power > 0.05 ? power : null, down: sum(down, rate), up: sum(up, rate) };
   }
 
+  /** PoE-Steuerung der Ports eines Geräts: Schalter "Port PoE" und Button "Power Cycle" am übergeordneten Gerät */
+  _poeControls(d, parent) {
+    if (!parent || d.secondary || !d.flow) return null;
+    const c = d.cfg || {};
+    const st = this._hass.states;
+    const parentStates = parent.entityIds.map((id) => st[id]).filter(Boolean);
+    const opts = { deviceName: parent.haName, entities: this._hass.entities };
+    const pick = (explicit, kind) =>
+      explicit && st[explicit] ? [explicit] : (d.flow.ports || []).map((p) => findPortEntity(parentStates, p, kind, opts)?.entity_id).filter(Boolean);
+    const switches = pick(c.poe_switch_entity, "poe_switch");
+    const cycles = pick(c.poe_cycle_entity, "cycle");
+    if (!switches.length && !cycles.length) return null;
+    return { switches, cycles, on: switches.some((id) => st[id]?.state === "on") };
+  }
+
+  /** IP-Adresse eines Geräts: Konfiguration, Tracker-Attribut oder das, was der Switch-Port des Uplinks meldet */
+  _ip(d) {
+    if (d.cfg?.ip) return d.cfg.ip;
+    const st = this._hass.states;
+    const norm = (v) => String(v || "").trim().toLowerCase();
+    for (const id of d.entityIds || []) {
+      const a = st[id]?.attributes;
+      const ip = a && (a.ip || a.ip_address || a.ipv4);
+      if (ip && /^\d+\.\d+\.\d+\.\d+$/.test(String(ip))) return String(ip);
+    }
+    const parent = this._devices.find((x) => x.id === d.parent);
+    for (const id of parent?.entityIds || []) {
+      const a = st[id]?.attributes;
+      if (!a || !a.connected_ip) continue;
+      if ((a.connected_mac && d.mac && norm(a.connected_mac) === norm(d.mac)) || (a.connected_device && [d.name, d.haName].some((n) => n && norm(n) === norm(a.connected_device)))) {
+        return a.connected_ip;
+      }
+    }
+    return null;
+  }
+
+  _uptime(d) {
+    const st = this._hass.states;
+    const s = (d.entityIds || [])
+      .map((id) => st[id])
+      .filter(Boolean)
+      .find((x) => x.entity_id.startsWith("sensor.") && /uptime|betriebszeit|laufzeit/i.test(`${x.entity_id} ${x.attributes?.friendly_name || ""}`));
+    return uptimeSeconds(s);
+  }
+
   _model() {
     const hass = this._hass;
     const cfg = this._config;
@@ -404,7 +451,9 @@ class UnifiNetworkCard extends HTMLElement {
     const items = this._devices.map((d) => {
       const s = this._status(d);
       const flow = cfg.show_flows ? this._flow(d, byId[d.parent]) : null;
-      return { ...d, ...s, flow, clients: this._clients(d), restart: this._restart(d) };
+      const item = { ...d, ...s, flow, clients: this._clients(d), restart: this._restart(d) };
+      item.poeCtl = this._poeControls(item, byId[d.parent]);
+      return item;
     });
     // PoE-Verbrauch pro Switch (Summe der Kinder)
     const used = {};
@@ -438,7 +487,7 @@ class UnifiNetworkCard extends HTMLElement {
     const model = this._model();
     this._loadHistory([...model.latency, ...model.wan]);
     const sig = JSON.stringify([
-      model.items.map((d) => [d.id, d.name, d.online, d.update, d.flow, d.poeUsed, d.poeBudget, d.cfg?.image, d.clients, d.secondary, d.restart]),
+      model.items.map((d) => [d.id, d.name, d.online, d.update, d.flow, d.poeUsed, d.poeBudget, d.cfg?.image, d.clients, d.secondary, d.restart, d.poeCtl]),
       model.summary,
       model.latency.map((l) => [l.entity, l.name, l.icon, l.value, l.unit]),
       model.wan.map((w) => [w.entity, w.value]),
@@ -449,6 +498,7 @@ class UnifiNetworkCard extends HTMLElement {
     ]);
     if (sig === this._sig) return;
     this._sig = sig;
+    this._lastModel = model;
     this._render(model);
   }
 
@@ -487,10 +537,15 @@ class UnifiNetworkCard extends HTMLElement {
 
   _link(d, locale, t) {
     const f = d.flow;
-    if (!this._config.show_flows || !f) return `<div class="link"><div class="stem ${d.online ? 'on' : 'off'}"></div></div>`;
+    const act = d.poeCtl ? ` act" data-id="${esc(d.id)}" role="button" tabindex="0" title="${esc(t("poe_manage"))}` : "";
+    return this._linkInner(d, f, act, locale, t);
+  }
+
+  _linkInner(d, f, act, locale, t) {
+    if (!this._config.show_flows || !f) return `<div class="link${act}"><div class="stem ${d.online ? 'on' : 'off'}"></div></div>`;
     const hasData = f.down != null || f.up != null;
     if (!d.online) {
-      return `<div class="link"><div class="stem ${d.online ? 'on' : 'off'}"></div><div class="chip" style="left:calc(50% + 10px)"><span class="off">${esc(t("no_link"))}</span></div></div>`;
+      return `<div class="link${act}"><div class="stem ${d.online ? 'on' : 'off'}"></div><div class="chip" style="left:calc(50% + 10px)"><span class="off">${esc(t("no_link"))}</span></div></div>`;
     }
     const lines = [];
     const dur = (v) => (v >= 100 ? 0.5 : v >= 10 ? 0.8 : v >= 1 ? 1.2 : 2);
@@ -501,10 +556,10 @@ class UnifiNetworkCard extends HTMLElement {
     if (f.up != null) lines.push(`<div class="fl u upw${f.up > 0.01 ? "" : " idle"}" style="--dur:${dur(f.up)}s"></div>`);
     if (!lines.length) {
       const tag = this._tag(f, t);
-      return `<div class="link"><div class="stem ${d.online ? 'on' : 'off'}"></div>${tag ? `<div class="chip" style="left:calc(50% + 10px)">${tag}</div>` : ""}</div>`;
+      return `<div class="link${act}"><div class="stem ${d.online ? 'on' : 'off'}"></div>${tag ? `<div class="chip" style="left:calc(50% + 10px)">${tag}</div>` : ""}</div>`;
     }
     const width = lines.length * 4 + (lines.length - 1) * 2;
-    return `<div class="link"><div class="lines" style="width:${width}px;left:calc(50% - ${width / 2}px)">${lines.join("")}</div><div class="chip" style="left:calc(50% + ${width / 2 + 7}px)">${this._tag(f, t)}${this._chip(f, t, locale)}</div></div>`;
+    return `<div class="link${act}"><div class="lines" style="width:${width}px;left:calc(50% - ${width / 2}px)">${lines.join("")}</div><div class="chip" style="left:calc(50% + ${width / 2 + 7}px)">${this._tag(f, t)}${this._chip(f, t, locale)}</div></div>`;
   }
 
   _tile(d, locale, t, inGrid = false) {
@@ -586,6 +641,28 @@ class UnifiNetworkCard extends HTMLElement {
   _confirmHtml(t) {
     const c = this._confirm;
     if (!c) return "";
+    if (c.type === "device") {
+      const d = (this._lastModel?.items || []).find((x) => x.id === c.id);
+      if (!d) return "";
+      const lang = this._hass?.locale?.language || this._hass?.language;
+      const up = this._uptime(d);
+      const rows = [
+        [t("info_status"), `${esc(t(d.online ? "online" : "offline"))}${d.update ? ` · ${esc(t("update"))}` : ""}`],
+        [t("info_ip"), this._ip(d) ? esc(this._ip(d)) : "–"],
+        [t("info_uptime"), up === null ? "–" : esc(formatDuration(up, lang))],
+      ];
+      const rs = d.restart ? `<button type="button" class="danger" data-act="dev-restart" data-entity="${esc(d.restart)}" data-name="${esc(d.name)}">${esc(t("restart"))}</button>` : "";
+      return `<div class="dlg" role="dialog" aria-modal="true"><div class="box"><p><b>${esc(d.name)}</b><br><span class="sub">${esc([d.model, d.sw].filter(Boolean).join(" · "))}</span></p><dl class="info">${rows.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${v}</dd></div>`).join("")}</dl><div class="acts col">${rs}<button type="button" data-act="cancel">${esc(t("close"))}</button></div></div></div>`;
+    }
+    if (c.type === "poe") {
+      const st = this._hass.states;
+      const on = c.switches.some((id) => st[id]?.state === "on");
+      const sw = c.switches.length
+        ? `<button type="button" class="${on ? "danger" : ""}" data-act="poe-toggle">${esc(t(on ? "poe_off" : "poe_on"))}</button>`
+        : "";
+      const cy = c.cycles.length ? `<button type="button" data-act="poe-cycle">${esc(t("poe_cycle"))}</button>` : "";
+      return `<div class="dlg" role="dialog" aria-modal="true"><div class="box"><p><b>${esc(c.name)}</b>${c.port ? `<br><span class="sub">${esc(c.port)}</span>` : ""}</p><div class="acts col">${sw}${cy}<button type="button" data-act="cancel">${esc(t("cancel"))}</button></div></div></div>`;
+    }
     const text = t("restart_confirm").replace("{name}", () => esc(c.name));
     return `<div class="dlg" role="alertdialog" aria-modal="true"><div class="box"><p>${text}</p><div class="acts"><button type="button" data-act="cancel">${esc(t("cancel"))}</button><button type="button" class="danger" data-act="ok">${esc(t("restart_do"))}</button></div></div></div>`;
   }
@@ -650,10 +727,11 @@ class UnifiNetworkCard extends HTMLElement {
         }
       });
     };
+    // Klick auf ein Gerät: kleines Info-Fenster (Status, IP, Betriebszeit, Neustart) statt Sensor-Details
     this.shadowRoot.querySelectorAll(".tile").forEach((el) =>
       bind(el, () => {
-        const d = this._devices.find((x) => x.id === el.dataset.id);
-        moreInfo(d && (d.entityIds.find((e) => e.startsWith("device_tracker.")) || d.entityIds[0]));
+        this._confirm = { type: "device", id: el.dataset.id };
+        this._update();
       })
     );
     this.shadowRoot.querySelectorAll(".pg").forEach((el) => bind(el, () => moreInfo(el.dataset.entity)));
@@ -665,11 +743,44 @@ class UnifiNetworkCard extends HTMLElement {
         this._update();
       })
     );
+    // Klick auf eine Verbindung: PoE ein/aus und PoE-Neustart (Power Cycle) des Ports anbieten
+    this.shadowRoot.querySelectorAll(".link.act").forEach((el) =>
+      bind(el, () => {
+        const d = this._devices.find((x) => x.id === el.dataset.id);
+        const parent = d && this._devices.find((x) => x.id === d.parent);
+        const model = this._lastModel?.items.find((x) => x.id === el.dataset.id);
+        const ctl = model?.poeCtl;
+        if (!d || !ctl) return;
+        this._confirm = {
+          type: "poe",
+          name: d.name,
+          port: [parent?.name, model.flow?.portText].filter(Boolean).join(" · "),
+          switches: ctl.switches,
+          cycles: ctl.cycles,
+        };
+        this._update();
+      })
+    );
+    this.shadowRoot.querySelectorAll(".dlg").forEach((el) =>
+      el.addEventListener("click", (e) => {
+        if (e.target === el) {
+          this._confirm = null;
+          this._update();
+        }
+      })
+    );
     this.shadowRoot.querySelectorAll(".dlg [data-act]").forEach((el) =>
       el.addEventListener("click", () => {
         const c = this._confirm;
+        const act = el.dataset.act;
         this._confirm = null;
-        if (el.dataset.act === "ok" && c) this._hass.callService("button", "press", { entity_id: c.entity });
+        if (act === "dev-restart") this._confirm = { entity: el.dataset.entity, name: el.dataset.name };
+        else if (c && act === "ok") this._hass.callService("button", "press", { entity_id: c.entity });
+        else if (c && act === "poe-cycle") this._hass.callService("button", "press", { entity_id: c.cycles });
+        else if (c && act === "poe-toggle") {
+          const on = c.switches.some((id) => this._hass.states[id]?.state === "on");
+          this._hass.callService("switch", on ? "turn_off" : "turn_on", { entity_id: c.switches });
+        }
         this._update();
       })
     );

@@ -125,6 +125,16 @@ export const styles = `
     background: transparent; color: var(--primary-text-color); }
   .dlg button.danger { background: var(--error-color, #f44336); border-color: var(--error-color, #f44336); color: var(--text-primary-color, #fff); }
 
+  .link.act { cursor: pointer; }
+  .link.act:hover .chip, .link.act:focus-visible .chip { outline: 1px solid var(--primary-color, #03a9f4); }
+  .link.act:hover .stem, .link.act:hover .lines { filter: brightness(1.3); }
+  .dlg .acts.col { flex-direction: column; align-items: stretch; }
+  .dlg dl.info { margin: 0 0 16px; display: grid; gap: 6px; }
+  .dlg dl.info > div { display: flex; justify-content: space-between; gap: 24px; font-size: .9em; }
+  .dlg dl.info dt { color: var(--secondary-text-color); }
+  .dlg dl.info dd { margin: 0; font-variant-numeric: tabular-nums; }
+  .dlg .sub { font-size: .85em; color: var(--secondary-text-color); }
+
   /* ---- Ping / Latenz ---- */
   .ping { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
   .pg { position: relative; overflow: hidden; cursor: pointer; border-radius: var(--ha-card-border-radius, 12px); background: var(--unifi-tile); min-height: 64px; }

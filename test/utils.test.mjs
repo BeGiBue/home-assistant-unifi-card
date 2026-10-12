@@ -18,6 +18,8 @@ import {
   detectLinks,
   buildAutoDeviceEntries,
   portSensorKey,
+  formatDuration,
+  uptimeSeconds,
 } from "../src/utils.js";
 
 test("typeOf erkennt UniFi-Modelle", () => {
@@ -310,4 +312,12 @@ test("Erneute Erkennung aktualisiert nur automatische Felder, manuelle bleiben",
   const named = r1.devices.map((d) => ({ ...d, name: "Mein AP" }));
   const r4 = buildAutoDeviceEntries(list, byDevice, at(0), named);
   assert.deepEqual(r4.devices, [{ device: "ap", name: "Mein AP" }]);
+});
+
+test("formatDuration und uptimeSeconds", () => {
+  assert.equal(formatDuration(3 * 86400 + 4 * 3600 + 12 * 60, "de"), "3 T 4 Std 12 Min");
+  assert.equal(formatDuration(5 * 60, "en"), "5m");
+  assert.equal(uptimeSeconds({ state: "2026-10-10T00:00:00+00:00", attributes: { device_class: "timestamp" } }, Date.parse("2026-10-11T00:00:00Z")), 86400);
+  assert.equal(uptimeSeconds({ state: "2", attributes: { unit_of_measurement: "h" } }), 7200);
+  assert.equal(uptimeSeconds({ state: "unavailable", attributes: {} }), null);
 });

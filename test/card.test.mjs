@@ -373,3 +373,64 @@ test("Ohne PoE-Versorgung entfällt die PoE-Anzeige", () => {
   assert.doesNotMatch(html, /fl p/);
   assert.match(html, /↓<\/b> 38 Mb\/s/); // Datenfluss bleibt
 });
+
+test("Klick auf die Verbindung bietet PoE aus/an und PoE-Neustart an", () => {
+  const calls = [];
+  const h = {
+    ...hass,
+    entities: {
+      ...hass.entities,
+      "switch.sw_port_5_poe": ent("switch.sw_port_5_poe", "sw", "unifi_network_plus"),
+      "button.sw_port_5_power_cycle": ent("button.sw_port_5_power_cycle", "sw", "unifi_network_plus"),
+    },
+    states: withIds({
+      ...hass.states,
+      "switch.sw_port_5_poe": state("on", { friendly_name: "Switch Keller Port 5 PoE" }),
+      "button.sw_port_5_power_cycle": state("unknown", { friendly_name: "Switch Keller Port 5 Power Cycle" }),
+    }),
+    callService: (...a) => calls.push(a),
+  };
+  const card = new Card();
+  card.setConfig({ devices: [{ device: "ap", switch_port: 5 }] });
+  card.hass = h;
+  // Die PoE-Leistung (Sensor) darf nicht mit dem PoE-Schalter verwechselt werden
+  assert.match(card.shadowRoot.innerHTML, /8,9 W/);
+  assert.match(card.shadowRoot.innerHTML, /class="link act" data-id="ap"/);
+  const ctl = card._lastModel.items.find((d) => d.id === "ap").poeCtl;
+  assert.deepEqual(ctl, { switches: ["switch.sw_port_5_poe"], cycles: ["button.sw_port_5_power_cycle"], on: true });
+  card._confirm = { type: "poe", name: "AP", port: "Switch Keller · Port 5", switches: ctl.switches, cycles: ctl.cycles };
+  card._update();
+  const html = card.shadowRoot.innerHTML;
+  assert.match(html, /data-act="poe-toggle"/);
+  assert.match(html, /PoE ausschalten/);
+  assert.match(html, /data-act="poe-cycle"/);
+});
+
+test("Klick auf ein Gerät zeigt Status, IP, Betriebszeit und Neustart – keine Sensordetails", () => {
+  const h = {
+    ...restartHass,
+    entities: { ...restartHass.entities, "sensor.sw_uptime": ent("sensor.sw_uptime", "sw") },
+    states: withIds({
+      ...restartHass.states,
+      "sensor.sw_uptime": state(new Date(Date.now() - (2 * 86400 + 3 * 3600 + 5 * 60) * 1000).toISOString(), { friendly_name: "Switch Keller Uptime", device_class: "timestamp" }),
+      "sensor.sw_port_5_link_speed": state("1000", { friendly_name: "Switch Keller Port 5 Link Speed", connected_device: "AP <Büro>", connected_ip: "192.168.1.20" }),
+    }),
+    entities2: null,
+  };
+  h.entities["sensor.sw_port_5_link_speed"] = ent("sensor.sw_port_5_link_speed", "sw");
+  const card = new Card();
+  card.setConfig({});
+  card.hass = h;
+  card._confirm = { type: "device", id: "sw" };
+  card._update();
+  let html = card.shadowRoot.innerHTML;
+  assert.match(html, /2 T 3 Std/);
+  assert.match(html, /data-act="dev-restart"/);
+  assert.match(html, /Betriebszeit/);
+  // IP eines Geräts kommt vom Port des Uplinks
+  card._confirm = { type: "device", id: "ap" };
+  card._update();
+  html = card.shadowRoot.innerHTML;
+  assert.match(html, /192\.168\.1\.20/);
+  assert.doesNotMatch(html, /data-act="dev-restart"/); // AP hat hier keinen Neustart-Button
+});

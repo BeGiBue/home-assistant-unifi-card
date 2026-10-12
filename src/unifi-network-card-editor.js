@@ -160,6 +160,9 @@ class UnifiNetworkCardEditor extends HTMLElement {
               poe_budget: { label: t("e_poe_budget"), selector: { number: { min: 0, max: 5000, unit_of_measurement: "W", mode: "box" } } },
               link_type: { label: t("e_link_type"), selector: { select: { mode: "dropdown", options: linkTypes } } },
               restart_entity: { label: t("e_restart_entity"), selector: { entity: { filter: { domain: "button" } } } },
+              ip: { label: t("e_ip"), selector: { text: {} } },
+              poe_switch_entity: { label: t("e_poe_switch"), selector: { entity: { filter: { domain: "switch" } } } },
+              poe_cycle_entity: { label: t("e_poe_cycle"), selector: { entity: { filter: { domain: "button" } } } },
               clients_entity: {
                 label: t("e_clients_entity"),
                 selector: { entity: { filter: { domain: "sensor" } } },
@@ -185,6 +188,9 @@ class UnifiNetworkCardEditor extends HTMLElement {
               link_type: { label: t("e_link_type"), selector: { select: { mode: "dropdown", options: linkTypes } } },
               entity: { label: t("e_ext_entity"), selector: { entity: {} } },
               restart_entity: { label: t("e_restart_entity"), selector: { entity: { filter: { domain: "button" } } } },
+              ip: { label: t("e_ip"), selector: { text: {} } },
+              poe_switch_entity: { label: t("e_poe_switch"), selector: { entity: { filter: { domain: "switch" } } } },
+              poe_cycle_entity: { label: t("e_poe_cycle"), selector: { entity: { filter: { domain: "button" } } } },
               poe_entity: {
                 label: t("e_poe_entity"),
                 selector: { entity: { filter: { domain: "sensor", device_class: "power" } } },
