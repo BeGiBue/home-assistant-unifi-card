@@ -232,6 +232,7 @@ test("buildAutoDeviceEntries füllt nur leere Felder und lässt LAG-Entitäten w
     "sensor.sw_p6_link": st("Keller Port 6 Link Speed", { connected_device: "NAS" }),
     "sensor.sw_p7_link": st("Keller Port 7 Link Speed", { connected_device: "NAS" }),
   };
+  Object.keys(states).forEach((k) => (states[k].entity_id = k));
   const r = buildAutoDeviceEntries(list, byDevice, states, [{ device: "ap", down_entity: "sensor.eigen" }]);
   const ap = r.devices.find((d) => d.device === "ap");
   assert.equal(ap.down_entity, "sensor.eigen"); // Nutzerwert bleibt
