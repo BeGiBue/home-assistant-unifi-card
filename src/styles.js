@@ -149,8 +149,11 @@ export const styles = `
   ha-card[data-d="compact"] ul.tree li { padding: 2px 2px 0; }
   ha-card[data-d="compact"] ul.tree ul { padding-top: 10px; }
   ha-card[data-d="compact"] ul.tree ul::before { height: 10px; }
-  ha-card[data-d="compact"] .link { height: 44px; }
-  ha-card[data-d="compact"] .chip { font-size: .66em; padding: 1px 4px; }
+  ha-card[data-d="compact"] .link { height: 54px; }
+  /* Die Chips der Nachbarn liegen nur ~90 px auseinander: schmal halten, Werte untereinander */
+  ha-card[data-d="compact"] .chip { left: calc(50% + 14px) !important; max-width: 68px; font-size: .62em; line-height: 1.25; padding: 1px 4px; white-space: normal; }
+  ha-card[data-d="compact"] .chip .r { display: block; white-space: nowrap; }
+  ha-card[data-d="compact"] .chip .lt { white-space: normal; }
   ha-card[data-d="compact"] .cl { font-size: .68em; margin-top: 3px; }
   ha-card[data-d="compact"] .budget .txt { font-size: .64em; }
 

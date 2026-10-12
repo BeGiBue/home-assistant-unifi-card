@@ -595,7 +595,7 @@ class UnifiNetworkCard extends HTMLElement {
     if (flow.poe !== null && flow.poe !== undefined) parts.push(`<div class="poe">${BOLT} ${esc(formatPower(flow.poe, locale))}</div>`);
     if (flow.down != null || flow.up != null) {
       parts.push(
-        `<div><b class="ar down">↓</b> ${esc(formatRate(flow.down, locale))} <b class="ar up">↑</b> ${esc(formatRate(flow.up, locale))}</div>`
+        `<div><span class="r"><b class="ar down">↓</b> ${esc(formatRate(flow.down, locale))}</span> <span class="r"><b class="ar up">↑</b> ${esc(formatRate(flow.up, locale))}</span></div>`
       );
     }
     return parts.join("");
