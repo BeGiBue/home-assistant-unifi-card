@@ -375,6 +375,19 @@ class UnifiNetworkCard extends HTMLElement {
     return { ...base, poe: power !== null && power > 0.05 ? power : null, down: sum(down, rate), up: sum(up, rate) };
   }
 
+  /** Hängt das Gerät aktiv am Port? Link-Speed-Sensor mit Zahl > 0, PoE-Leistung oder Datenverkehr */
+  _portActive(d, parent, flow) {
+    if (flow && ((flow.poe || 0) > 0.05 || (flow.down || 0) > 0.01 || (flow.up || 0) > 0.01)) return true;
+    if (!parent) return false;
+    const st = this._hass.states;
+    const parentStates = parent.entityIds.map((id) => st[id]).filter(Boolean);
+    const opts = { deviceName: parent.haName, entities: this._hass.entities };
+    return parsePorts(d.cfg?.switch_port).some((p) => {
+      const s = findPortEntity(parentStates, p, "link", opts);
+      return s && Number(s.state) > 0;
+    });
+  }
+
   /** PoE-Steuerung der Ports eines Geräts: Schalter "Port PoE" und Button "Power Cycle" am übergeordneten Gerät */
   _poeControls(d, parent) {
     if (!parent || d.secondary || !d.flow) return null;
@@ -435,6 +448,8 @@ class UnifiNetworkCard extends HTMLElement {
     const items = this._devices.map((d) => {
       const s = this._status(d);
       const flow = cfg.show_flows ? this._flow(d, byId[d.parent]) : null;
+      // Externes Gerät mit Status-Entität, die „offline“ meldet, aber am Port aktiv ist (Link, PoE oder Datenverkehr): online
+      if (d.external && !s.online && this._portActive(d, byId[d.parent], flow)) s.online = true;
       const item = { ...d, ...s, flow, clients: this._clients(d), restart: this._restart(d) };
       item.poeCtl = this._poeControls(item, byId[d.parent]);
       return item;

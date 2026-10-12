@@ -454,3 +454,25 @@ test("Verwaltete Liste: nur Geräte mit Eintrag, Ping nur aus latency_entities",
   empty.hass = h;
   assert.doesNotMatch(empty.shadowRoot.innerHTML, /class="ping"/);
 });
+
+test("Externes Gerät mit veralteter Status-Entität bleibt online, wenn der Port aktiv ist", () => {
+  const h = {
+    ...hass,
+    entities: { ...hass.entities, "sensor.sw_port_6_link_speed": ent("sensor.sw_port_6_link_speed", "sw", "unifi_network_plus") },
+    states: withIds({
+      ...hass.states,
+      "device_tracker.nas": state("not_home"),
+      "sensor.sw_port_6_link_speed": state("1000", { friendly_name: "Switch Keller Port 6 Link Speed" }),
+    }),
+  };
+  const card = new Card();
+  card.setConfig({ external_devices: [{ name: "NAS", parent: "sw", switch_port: "6", entity: "device_tracker.nas" }] });
+  card.hass = h;
+  assert.match(card.shadowRoot.innerHTML, /tile on ext/);
+  assert.doesNotMatch(card.shadowRoot.innerHTML, /kein Link/);
+  // Port nicht aktiv (Link-Speed nicht verfügbar): weiter offline
+  const off = new Card();
+  off.setConfig({ external_devices: [{ name: "NAS", parent: "sw", switch_port: "6", entity: "device_tracker.nas" }] });
+  off.hass = { ...h, states: withIds({ ...h.states, "sensor.sw_port_6_link_speed": state("unavailable", { friendly_name: "Switch Keller Port 6 Link Speed" }) }) };
+  assert.match(off.shadowRoot.innerHTML, /tile off ext/);
+});

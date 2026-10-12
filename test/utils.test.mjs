@@ -374,7 +374,7 @@ test("suggestExternalDevices schlägt Nicht-UniFi-Geräte an belegten Ports vor"
   assert.deepEqual(nas.ports, ["NAS", "NAS 2"]);
   assert.equal(nas.ip, "192.168.1.30");
   assert.equal(nas.icon, "mdi:nas");
-  assert.equal(nas.entity, "device_tracker.nas");
+  assert.equal(nas.entity, "sensor.k_l5"); // Status: Link-Speed-Sensor des Ports
   assert.equal(r.find((g) => g.name === "Drucker").icon, "mdi:printer");
   // bereits vorhandene externe Geräte werden nicht erneut vorgeschlagen
   const r2 = suggestExternalDevices(list, byDevice, states, {}, [{ name: "Drucker" }, { name: "x", parent: "sw", switch_port: "NAS" }]);

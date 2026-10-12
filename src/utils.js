@@ -96,6 +96,7 @@ export function findPortEntity(states, port, kind, opts = {}) {
     tx: /(^|[\s_])tx([\s_]|$)|upload|sende/i,
     poe_switch: /poe/i,
     cycle: /power[\s_-]*cycle|stromzyklus/i,
+    link: /link[\s_-]*speed|verbindungsgeschwindigkeit/i,
   }[kind];
   return states.find((s) => {
     if (!String(s.entity_id).startsWith(`${domain}.`)) return false;
@@ -571,7 +572,7 @@ export function suggestExternalDevices(list, byDevice, states, entities = {}, ex
       const m = /^(?:port|anschluss)\s*0*(\d+)$/i.exec(k.label);
       const portId = m ? Number(m[1]) : k.label;
       const key = `${p.id}|${norm(a.connected_mac) || norm(a.connected_device)}`;
-      const g = (groups[key] ||= { name: a.connected_device || a.connected_mac, parent: p.id, parentName: p.name, ports: [], ip: a.connected_ip || "", mac: a.connected_mac || "" });
+      const g = (groups[key] ||= { name: a.connected_device || a.connected_mac, parent: p.id, parentName: p.name, ports: [], ip: a.connected_ip || "", mac: a.connected_mac || "", linkSensor: id });
       if (!g.ports.includes(portId)) g.ports.push(portId);
       if (!g.ip && a.connected_ip) g.ip = a.connected_ip;
     });
@@ -594,7 +595,8 @@ export function suggestExternalDevices(list, byDevice, states, entities = {}, ex
         return (g.mac && mac && norm(mac) === norm(g.mac)) || (a.friendly_name && norm(a.friendly_name) === norm(g.name));
       });
       const icon = (ICON_GUESS.find(([re]) => re.test(g.name)) || [])[1] || "mdi:ethernet";
-      return { ...g, icon, entity: tr?.entity_id || "" };
+      // Status: der Link-Speed-Sensor des Ports (verfügbar, solange das Kabel steckt) ist verlässlicher als ein Tracker
+      return { ...g, icon, entity: g.linkSensor || tr?.entity_id || "" };
     })
     .sort((x, y) => x.parentName.localeCompare(y.parentName) || String(x.ports[0]).localeCompare(String(y.ports[0]), undefined, { numeric: true }));
 }
