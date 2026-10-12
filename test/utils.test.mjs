@@ -15,6 +15,7 @@ import {
   parsePorts,
   downsample,
   sparkline,
+  detectLinks,
 } from "../src/utils.js";
 
 test("typeOf erkennt UniFi-Modelle", () => {
@@ -185,4 +186,26 @@ test("UniFi Network+: Controller-Eintrag ausgeblendet, Duplikate zur Core-Integr
   const { list, byDevice } = collectUnifiDevices(hass);
   assert.deepEqual(list.map((d) => d.id).sort(), ["coreSw", "plusAp"]);
   assert.deepEqual(byDevice.coreSw.map((e) => e.entity_id).sort(), ["device_tracker.keller", "sensor.keller_port_5_download"]);
+});
+
+test("detectLinks ordnet Geräte über die Link-Speed-Sensoren den Ports zu", () => {
+  const devs = [
+    { id: "gw", name: "Router", type: "gateway", mac: "", entityIds: ["sensor.gw_port_2_link_speed"] },
+    { id: "sw", name: "Keller", type: "switch", mac: "aa:bb:cc:00:00:01", entityIds: ["sensor.sw_port_1_link_speed", "sensor.sw_port_5_link_speed", "sensor.sw_port_6_link_speed", "sensor.sw_port_9_link_speed"] },
+    { id: "ap", name: "Werkstatt", type: "ap", mac: "aa:bb:cc:00:00:02", entityIds: [] },
+    { id: "nas", name: "NAS", type: "other", mac: "", entityIds: [] },
+  ];
+  const mk = (name, attrs) => ({ state: "1000", attributes: { friendly_name: name, ...attrs } });
+  const states = {
+    "sensor.gw_port_2_link_speed": mk("Router Port 2 Link Speed", { connected_mac: "AA:BB:CC:00:00:01" }),
+    "sensor.sw_port_1_link_speed": mk("Keller Port 1 Link Speed", { connected_device: "Router" }), // Uplink: gleichrangig/oberhalb -> ignorieren
+    "sensor.sw_port_5_link_speed": mk("Keller Port 5 Link Speed", { connected_mac: "aa:bb:cc:00:00:02" }),
+    "sensor.sw_port_6_link_speed": mk("Keller Port 6 Link Speed", { connected_device: "nas" }),
+    "sensor.sw_port_9_link_speed": mk("Keller Port 9 Link Speed", { connected_device: "NAS" }),
+  };
+  const out = detectLinks(devs, states);
+  assert.deepEqual(out.sw, { parent: "gw", ports: [2] });
+  assert.deepEqual(out.ap, { parent: "sw", ports: [5] });
+  assert.deepEqual(out.nas, { parent: "sw", ports: [6, 9] }); // Link Aggregation
+  assert.equal(out.gw, undefined);
 });

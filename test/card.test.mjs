@@ -338,3 +338,21 @@ test("UniFi Network+: Port-Sensoren Download/Upload, WAN-Latenz und Restart werd
   swapped.hass = h;
   assert.match(swapped.shadowRoot.innerHTML, /↓<\/b> 5 Mb\/s/);
 });
+
+test("Port am Switch wird automatisch zugeordnet (Link-Speed-Attribute von Network+)", () => {
+  const h = {
+    ...hass,
+    entities: { ...hass.entities, "sensor.sw_port_5_link_speed": ent("sensor.sw_port_5_link_speed", "sw", "unifi_network_plus") },
+    states: withIds({
+      ...hass.states,
+      "sensor.sw_port_5_link_speed": state("1000", { friendly_name: "Switch Keller Port 5 Link Speed", connected_device: "AP <Büro>" }),
+    }),
+  };
+  const card = new Card();
+  card.setConfig({});
+  card.hass = h;
+  const html = card.shadowRoot.innerHTML;
+  assert.match(html, /Port 5/);
+  assert.match(html, /8,9 W/);
+  assert.match(html, /↓<\/b> 38 Mb\/s/);
+});

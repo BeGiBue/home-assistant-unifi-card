@@ -15,6 +15,7 @@ import {
   parsePorts,
   downsample,
   sparkline,
+  detectLinks,
 } from "./utils.js";
 import "./unifi-network-card-editor.js";
 
@@ -118,8 +119,19 @@ class UnifiNetworkCard extends HTMLElement {
         cfgParent: cfg.parent || null,
         type: typeOf(model),
         entityIds: (byDevice[d.id] || []).map((e) => e.entity_id),
+        mac: ((d.connections || []).find((c) => c && c[0] === "mac") || [])[1] || "",
         cfg,
       };
+    });
+    // Automatische Zuordnung Gerät -> Switch-Port (UniFi Network+), nur wenn nichts konfiguriert ist
+    this._links = detectLinks(base, this._hass.states);
+    this._linkSig = JSON.stringify(this._links);
+    base.forEach((d) => {
+      const l = this._links[d.id];
+      if (l) {
+        d.autoLink = l;
+        d.viaParent = d.viaParent || l.parent;
+      }
     });
     // Manuell angelegte Geräte außerhalb von UniFi
     const known2 = new Set(base.map((d) => d.id));
@@ -336,7 +348,8 @@ class UnifiNetworkCard extends HTMLElement {
     const st = this._hass.states;
     const parentStates = parent.entityIds.map((id) => st[id]).filter(Boolean);
     // Mehrere Ports (Link Aggregation): Leistung und Datenraten werden addiert
-    const ports = parsePorts(c.switch_port);
+    let ports = parsePorts(c.switch_port);
+    if (!ports.length && d.autoLink && d.autoLink.parent === parent.id) ports = d.autoLink.ports;
     const type = c.link_type && c.link_type !== "none" ? c.link_type : null;
     // Switch-Port: RX = vom Gerät empfangen (= Upload des Geräts), TX = zum Gerät gesendet (= Download)
     const pick = (explicit, kind) =>
@@ -372,6 +385,9 @@ class UnifiNetworkCard extends HTMLElement {
       this._entRef = hass.entities;
       this._collectDevices();
     }
+    // Port-Sensoren können später aktiviert werden: Zuordnung bei Änderung neu aufbauen
+    const liveSig = JSON.stringify(detectLinks(this._devices.filter((d) => !d.external), hass.states));
+    if (liveSig !== this._linkSig) this._collectDevices();
     const byId = Object.fromEntries(this._devices.map((d) => [d.id, d]));
     const items = this._devices.map((d) => {
       const s = this._status(d);

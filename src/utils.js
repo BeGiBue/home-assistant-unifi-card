@@ -202,6 +202,53 @@ export function collectUnifiDevices(hass, configEntry) {
   return { list, byDevice };
 }
 
+/**
+ * Erkennt automatisch, welches Gerät an welchem Port eines Switches/Gateways hängt.
+ * Quelle: die Port-Sensoren „Port N Link Speed“ von UniFi Network+ (Attribute connected_mac / connected_device).
+ * devices: [{id, name, type, mac, entityIds}], states: hass.states
+ * Ergebnis: { [kindId]: { parent, ports: [..] } } – mehrere Ports zum selben Elternteil = Link Aggregation.
+ */
+export function detectLinks(devices, states) {
+  const norm = (s) => String(s || "").trim().toLowerCase();
+  const byMac = {};
+  const byName = {};
+  devices.forEach((d) => {
+    if (d.mac) byMac[norm(d.mac)] = d;
+    if (d.name) byName[norm(d.name)] = d;
+  });
+  const rank = { gateway: 0, switch: 1 };
+  const rankOf = (d) => rank[d.type] ?? 2;
+  const found = {};
+  devices.forEach((p) => {
+    if (!(p.type in rank)) return;
+    (p.entityIds || []).forEach((id) => {
+      const s = states?.[id];
+      if (!s) return;
+      const a = s.attributes || {};
+      const label = `${a.friendly_name || ""} ${id}`;
+      if (!/link[\s_]*speed/i.test(label)) return;
+      const m = /(?:port|anschluss)[\s_]*0*(\d+)(?!\d)/i.exec(label);
+      if (!m) return;
+      const child = (a.connected_mac && byMac[norm(a.connected_mac)]) || (a.connected_device && byName[norm(a.connected_device)]);
+      if (!child || child.id === p.id) return;
+      (((found[child.id] ||= {})[p.id]) ||= []).push(Number(m[1]));
+    });
+  });
+  const out = {};
+  const byId = Object.fromEntries(devices.map((d) => [d.id, d]));
+  Object.entries(found).forEach(([cid, parents]) => {
+    const child = byId[cid];
+    // Nur Eltern, die in der Hierarchie über dem Kind stehen (Gateway > Switch > Rest);
+    // gleichrangige Geräte (zwei Switches sehen sich gegenseitig) bleiben der manuellen Zuordnung überlassen.
+    const cands = Object.keys(parents)
+      .filter((pid) => rankOf(byId[pid]) < rankOf(child))
+      .sort((x, y) => rankOf(byId[x]) - rankOf(byId[y]));
+    if (!cands.length) return;
+    out[cid] = { parent: cands[0], ports: [...new Set(parents[cands[0]])].sort((x, y) => x - y) };
+  });
+  return out;
+}
+
 /** Port-Angabe als Liste: 5, "5", "6, 7" oder [6, 7] -> [6, 7] (mehrere Ports = Link Aggregation) */
 export function parsePorts(value) {
   if (value === undefined || value === null || value === "") return [];
