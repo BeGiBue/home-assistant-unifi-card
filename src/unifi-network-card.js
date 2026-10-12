@@ -82,19 +82,39 @@ class UnifiNetworkCard extends HTMLElement {
     const tree = card.querySelector("ul.tree.root");
     if (want !== "auto") {
       this._density = levels.includes(want) ? want : "normal";
-    } else if (!tree || !card.clientWidth) {
+    } else if (!tree) {
       this._density = "normal";
     } else {
-      this._lastW = Math.round(this.clientWidth || 0);
-      let chosen = "list";
-      for (const l of levels) {
-        card.dataset.d = l;
-        if (tree.scrollWidth <= tree.clientWidth + 1) {
-          chosen = l;
-          break;
+      // Verfügbare Breite: Karte, begrenzt durch den Bildschirm (falls das Layout mit dem Inhalt mitwächst)
+      const view = (typeof document !== "undefined" && document.documentElement?.clientWidth) || (typeof window !== "undefined" && window.innerWidth) || 0;
+      const cw = card.clientWidth || this.clientWidth || 0;
+      const avail = Math.min(cw || view, view || cw);
+      if (!avail) {
+        this._density = "normal";
+      } else {
+        this._lastW = Math.round(this.clientWidth || 0);
+        // Größte Kachelanzahl auf einer Ebene des Baums (für die Breitenabschätzung)
+        const perLevel = {};
+        tree.querySelectorAll("li").forEach((li) => {
+          let depth = 0;
+          for (let n = li.parentElement; n && n !== tree; n = n.parentElement) if (n.tagName === "UL") depth++;
+          perLevel[depth] = (perLevel[depth] || 0) + 1;
+        });
+        const widest = Math.max(1, ...Object.values(perLevel));
+        const tileW = { normal: 160, compact: 96 };
+        const inner = avail - 24; // Kartenrand
+        let chosen = "list";
+        for (const l of levels) {
+          card.dataset.d = l;
+          const measured = tree.scrollWidth <= tree.clientWidth + 1;
+          const estimated = l === "list" || widest * tileW[l] <= inner;
+          if (measured && estimated) {
+            chosen = l;
+            break;
+          }
         }
+        this._density = chosen;
       }
-      this._density = chosen;
     }
     card.dataset.d = this._density;
   }

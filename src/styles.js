@@ -67,7 +67,7 @@ export const styles = `
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; justify-items: center; }
 
   /* ---- Baum ---- */
-  ul.tree, ul.tree ul { list-style: none; margin: 0; padding: 0; display: flex; justify-content: safe center; align-items: flex-start; }
+  ul.tree, ul.tree ul { list-style: none; margin: 0; padding: 0; display: flex; justify-content: center; justify-content: safe center; align-items: flex-start; }
   ul.tree ul { padding-top: 14px; position: relative; }
   ul.tree ul::before { content: ""; position: absolute; top: 0; left: calc(50% - 1px); width: 2px; height: 14px; background: var(--unifi-link-off); }
   ul.tree ul.on::before { background: var(--unifi-link-on); }
