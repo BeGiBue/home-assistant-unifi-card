@@ -11,6 +11,9 @@ export const TYPE_RULES = [
   ["ap", /^(U6|U7|UAP|UWB|UAL|UK|E7|U5|nano|AC-|BeaconHD|FlexHD|IW|Mesh|AP)/i],
 ];
 
+/** Integrationen, aus denen die Karte Geräte liest (Core-Integration und Community-Integration UniFi Network+) */
+export const UNIFI_PLATFORMS = ["unifi", "unifi_network_plus"];
+
 export const TYPE_ORDER = ["gateway", "switch", "ap", "camera", "phone", "access", "other", "external"];
 
 /**
@@ -20,7 +23,8 @@ export const TYPE_ORDER = ["gateway", "switch", "ap", "camera", "phone", "access
 export function isNetworkDevice(device) {
   if (!device) return false;
   if (device.entry_type === "service") return false;
-  return !/^UniFi\s*(WLAN|Network|Protect|Client|Controller)/i.test(device.model || "");
+  // "Network Controller" ist der Sammel-Eintrag von UniFi Network+, kein echtes Gerät
+  return !/^(UniFi\s*(WLAN|Network|Protect|Client|Controller)|Network Controller$)/i.test(device.model || "");
 }
 
 /** Modellname -> Gerätetyp */
@@ -172,12 +176,28 @@ export function collectUnifiDevices(hass, configEntry) {
   Object.values(hass?.entities || {}).forEach((e) => {
     if (e.device_id) (byDevice[e.device_id] ||= []).push(e);
   });
-  const list = Object.values(hass?.devices || {}).filter((d) => {
+  let list = Object.values(hass?.devices || {}).filter((d) => {
     const own = byDevice[d.id] || [];
-    if (!own.some((e) => e.platform === "unifi") || !isNetworkDevice(d)) return false;
+    if (!own.some((e) => UNIFI_PLATFORMS.includes(e.platform)) || !isNetworkDevice(d)) return false;
     if (configEntry && !(d.config_entries || []).includes(configEntry)) return false;
     const ubnt = /ubiquiti|ubnt|unifi/i.test(d.manufacturer || "");
     return ubnt || typeOf(d.model || "") !== "other";
+  });
+  // Laufen Core-Integration und UniFi Network+ parallel, gibt es dasselbe Gerät doppelt:
+  // Das Network+-Gerät wird (über den Namen) in das Core-Gerät eingemischt, seine Entitäten bleiben nutzbar.
+  const isPlus = (d) => (byDevice[d.id] || []).some((e) => e.platform === "unifi_network_plus");
+  const isCore = (d) => (byDevice[d.id] || []).some((e) => e.platform === "unifi");
+  const norm = (s) => String(s || "").trim().toLowerCase();
+  const core = new Map();
+  list.filter((d) => isCore(d) && !isPlus(d)).forEach((d) => {
+    [d.name, d.name_by_user].filter(Boolean).forEach((n) => core.set(norm(n), d));
+  });
+  list = list.filter((d) => {
+    if (!isPlus(d) || isCore(d)) return true;
+    const target = core.get(norm(d.name_by_user)) || core.get(norm(d.name));
+    if (!target) return true;
+    byDevice[target.id] = [...(byDevice[target.id] || []), ...(byDevice[d.id] || [])];
+    return false;
   });
   return { list, byDevice };
 }

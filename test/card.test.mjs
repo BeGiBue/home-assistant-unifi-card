@@ -294,3 +294,47 @@ test("Verbindungslinien tragen den Online-Status (verbunden / offline)", () => {
   assert.match(html, /class="stem off"/);
   assert.match(html, /<ul class="off">/); // Switch -> nur der (offline) AP darunter
 });
+
+test("UniFi Network+: Port-Sensoren Download/Upload, WAN-Latenz und Restart werden erkannt", () => {
+  const h = {
+    ...hass,
+    devices: { ...hass.devices, ctrl: { id: "ctrl", name: "UniFi Network+", manufacturer: "Ubiquiti", model: "Network Controller" } },
+    entities: {
+      "device_tracker.gw": ent("device_tracker.gw", "gw"),
+      "sensor.ap_cpu": ent("sensor.ap_cpu", "ap", "unifi_network_plus"),
+      "sensor.sw_cpu": ent("sensor.sw_cpu", "sw", "unifi_network_plus"),
+      "sensor.sw_port_5_poe_power": ent("sensor.sw_port_5_poe_power", "sw", "unifi_network_plus"),
+      "sensor.sw_port_5_download": ent("sensor.sw_port_5_download", "sw", "unifi_network_plus"),
+      "sensor.sw_port_5_upload": ent("sensor.sw_port_5_upload", "sw", "unifi_network_plus"),
+      "sensor.sw_clients": ent("sensor.sw_clients", "sw", "unifi_network_plus"),
+      "button.sw_restart": ent("button.sw_restart", "sw", "unifi_network_plus"),
+      "sensor.unifi_network_wan_latency": ent("sensor.unifi_network_wan_latency", "ctrl", "unifi_network_plus"),
+    },
+    states: withIds({
+      "device_tracker.gw": state("home"),
+      "sensor.ap_cpu": state("9"),
+      "sensor.sw_cpu": state("12"),
+      "sensor.sw_port_5_poe_power": state("6", { friendly_name: "Switch Keller Port 5 PoE Power", device_class: "power", unit_of_measurement: "W" }),
+      // Network+: "Download" = Empfang am Port = Upload des Geräts
+      "sensor.sw_port_5_download": state("5", { friendly_name: "Switch Keller Port 5 Download", device_class: "data_rate", unit_of_measurement: "Mbit/s" }),
+      "sensor.sw_port_5_upload": state("30", { friendly_name: "Switch Keller Port 5 Upload", device_class: "data_rate", unit_of_measurement: "Mbit/s" }),
+      "sensor.sw_clients": state("7", { friendly_name: "Switch Keller Clients" }),
+      "button.sw_restart": state("unknown", { friendly_name: "Switch Keller Restart" }),
+      "sensor.unifi_network_wan_latency": state("11", { friendly_name: "UniFi Network+ WAN Latency", unit_of_measurement: "ms" }),
+    }),
+  };
+  const card = new Card();
+  card.setConfig({ devices: [{ device: "sw", parent: "gw" }, { device: "ap", parent: "sw", switch_port: 5 }] });
+  card.hass = h;
+  let html = card.shadowRoot.innerHTML;
+  assert.doesNotMatch(html, /Network Controller/);
+  assert.match(html, /↓<\/b> 30 Mb\/s/);
+  assert.match(html, /↑<\/b> 5 Mb\/s/);
+  assert.match(html, /6,0 W|6 W/);
+  assert.match(html, /class="rs"/);
+  assert.match(html, /WAN-Latenz/);
+  const swapped = new Card();
+  swapped.setConfig({ swap_port_direction: true, devices: [{ device: "ap", parent: "sw", switch_port: 5 }] });
+  swapped.hass = h;
+  assert.match(swapped.shadowRoot.innerHTML, /↓<\/b> 5 Mb\/s/);
+});

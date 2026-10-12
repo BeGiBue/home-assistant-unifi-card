@@ -62,7 +62,7 @@ class UnifiNetworkCardEditor extends HTMLElement {
     this._deviceSig = JSON.stringify(deviceOptions);
     return [
       { name: "title", selector: { text: {} } },
-      { name: "config_entry", selector: { config_entry: { integration: "unifi" } } },
+      { name: "config_entry", selector: { config_entry: {} } },
       {
         type: "grid",
         name: "",
@@ -88,6 +88,7 @@ class UnifiNetworkCardEditor extends HTMLElement {
           { name: "show_restart", selector: { boolean: {} } },
           { name: "show_latency", selector: { boolean: {} } },
           { name: "show_wan", selector: { boolean: {} } },
+          { name: "swap_port_direction", selector: { boolean: {} } },
           { name: "auto_parent", selector: { boolean: {} } },
         ],
       },
@@ -238,6 +239,7 @@ class UnifiNetworkCardEditor extends HTMLElement {
       latency_entities: "e_latency",
       latency_hours: "e_latency_hours",
       show_wan: "e_show_wan",
+      swap_port_direction: "e_swap",
       wan_down_entity: "e_wan_down",
       wan_up_entity: "e_wan_up",
     }[schema.name];

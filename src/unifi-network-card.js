@@ -71,6 +71,7 @@ class UnifiNetworkCard extends HTMLElement {
       show_restart: true,
       show_latency: true,
       show_wan: true,
+      swap_port_direction: false,
       latency_entities: [],
       devices: [],
       external_devices: [],
@@ -225,12 +226,22 @@ class UnifiNetworkCard extends HTMLElement {
           })
         );
     }
+    if (!(cfg.latency_entities || []).length) {
+      // WAN-Latenz der Community-Integration UniFi Network+ (hängt am Controller-Eintrag, nicht an einem Gerät)
+      Object.values(st).forEach((s) => {
+        const id = s.entity_id;
+        if (id.startsWith("sensor.") && /wan.*latency/i.test(id) && !defs.some((x) => x.entity === id)) {
+          defs.push({ entity: id, global: true });
+        }
+      });
+    }
     return defs
       .map((x) => {
         const s = st[x.entity];
         if (!s) return null;
         const fn = s.attributes?.friendly_name || x.entity;
         let name = x.name;
+        if (!name && x.global) name = localize(this._hass)("wan_latency");
         if (!name) {
           name = fn;
           if (x.dev && name.toLowerCase().startsWith(x.dev.toLowerCase())) name = name.slice(x.dev.length);
@@ -331,8 +342,10 @@ class UnifiNetworkCard extends HTMLElement {
     const pick = (explicit, kind) =>
       explicit && st[explicit] ? [st[explicit]] : ports.map((p) => findPortEntity(parentStates, p, kind)).filter(Boolean);
     const poe = pick(c.poe_entity, "poe");
-    const down = pick(c.down_entity, "tx");
-    const up = pick(c.up_entity, "rx");
+    // swap_port_direction: falls eine Integration RX/TX (bzw. Download/Upload) je Port andersherum liefert
+    const swap = this._config.swap_port_direction === true;
+    const down = pick(c.down_entity, swap ? "rx" : "tx");
+    const up = pick(c.up_entity, swap ? "tx" : "rx");
     const base = { ports, port: ports.join(", "), links: Math.max(ports.length, 1), type };
     if (!poe.length && !down.length && !up.length) {
       return ports.length || type ? { ...base, poe: null, down: null, up: null } : null;

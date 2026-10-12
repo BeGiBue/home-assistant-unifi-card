@@ -166,3 +166,23 @@ test("downsample und sparkline", () => {
   assert.match(sp.line, /^M0\.0,28\.0 L50\.0,2\.0 L100\.0,15\.0$/);
   assert.match(sp.area, /Z$/);
 });
+
+test("UniFi Network+: Controller-Eintrag ausgeblendet, Duplikate zur Core-Integration zusammengeführt", () => {
+  const hass = {
+    devices: {
+      ctrl: { id: "ctrl", name: "UniFi Network+", manufacturer: "Ubiquiti", model: "Network Controller", config_entries: ["p"] },
+      coreSw: { id: "coreSw", name: "Keller", manufacturer: "Ubiquiti", model: "US16P150", config_entries: ["c"] },
+      plusSw: { id: "plusSw", name: "keller", manufacturer: "Ubiquiti", model: "US16P150", config_entries: ["p"] },
+      plusAp: { id: "plusAp", name: "Werkstatt", manufacturer: "Ubiquiti", model: "U7PG2", config_entries: ["p"] },
+    },
+    entities: {
+      "sensor.ctrl_wan": { entity_id: "sensor.ctrl_wan", device_id: "ctrl", platform: "unifi_network_plus" },
+      "device_tracker.keller": { entity_id: "device_tracker.keller", device_id: "coreSw", platform: "unifi" },
+      "sensor.keller_port_5_download": { entity_id: "sensor.keller_port_5_download", device_id: "plusSw", platform: "unifi_network_plus" },
+      "sensor.werkstatt_clients": { entity_id: "sensor.werkstatt_clients", device_id: "plusAp", platform: "unifi_network_plus" },
+    },
+  };
+  const { list, byDevice } = collectUnifiDevices(hass);
+  assert.deepEqual(list.map((d) => d.id).sort(), ["coreSw", "plusAp"]);
+  assert.deepEqual(byDevice.coreSw.map((e) => e.entity_id).sort(), ["device_tracker.keller", "sensor.keller_port_5_download"]);
+});

@@ -79,6 +79,7 @@ devices:
 | `show_restart` | `true` | Neustart-Button an Geräten mit Restart-Entität anzeigen |
 | `show_latency` | `true` | Ping-/Latenz-Sensoren anzeigen |
 | `latency_entities[]` | automatisch | Eigene Latenz-Sensoren (`entity`, `name`, `icon`) |
+| `swap_port_direction` | `false` | Download/Upload der Port-Sensoren vertauschen |
 | `latency_hours` | `24` | Zeitraum des Verlaufs in Stunden |
 | `external_devices[]` | – | Geräte außerhalb von UniFi manuell anzeigen (siehe unten) |
 | `auto_parent` | `true` | Hierarchie automatisch ableiten, wenn Home Assistant sie nicht liefert (siehe unten) |
@@ -96,6 +97,20 @@ UniFi-Integration dafür einen Sensor liefert (Name enthält „Clients“, z. B
 Fehlt er oder soll ein anderer Sensor gelten, wählst du ihn pro Gerät unter `devices[].clients_entity`
 (auch ein Template-Sensor ist möglich, z. B. für zusammengefasste Verbindungen). Abschalten mit
 `show_clients: false`.
+
+## UniFi Network+ (Community-Integration)
+
+Die Karte liest Geräte aus der Core-Integration **und** aus [UniFi Network+](https://github.com/42bios/unifi-network-plus).
+Laufen beide parallel, werden gleichnamige Geräte zusammengeführt (Status und Update-Hinweis aus der Core-Integration,
+zusätzliche Sensoren aus Network+). Der Sammel-Eintrag „Network Controller“ erscheint nicht als Gerät.
+
+Network+ liefert zusätzlich: **WAN Download/Upload** (Kacheln „Internet“), **WAN Latency**, Neustart-Buttons (standardmäßig
+deaktiviert) und je Port **Download/Upload/PoE Power** (standardmäßig deaktiviert; bitte aktivieren). Die Port-Sensoren
+heißen „{Portname} Download/Upload“. Erkannt wird der Port über den Namen „Port N“. Hast du Ports in UniFi umbenannt,
+gib die Sensoren am Gerät direkt an (`poe_entity`, `down_entity`, `up_entity`).
+
+Hinweis zur Richtung: „Download“ eines Ports ist der Empfang am Switch, also der **Upload des angeschlossenen Geräts**.
+Die Karte berücksichtigt das. Zeigt sie bei dir die Pfeile vertauscht, schalte `swap_port_direction: true` ein.
 
 ## Neustart
 
