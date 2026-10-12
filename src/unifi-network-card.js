@@ -378,14 +378,18 @@ class UnifiNetworkCard extends HTMLElement {
   /** Hängt das Gerät aktiv am Port? Link-Speed-Sensor mit Zahl > 0, PoE-Leistung oder Datenverkehr */
   _portActive(d, parent, flow) {
     if (flow && ((flow.poe || 0) > 0.05 || (flow.down || 0) > 0.01 || (flow.up || 0) > 0.01)) return true;
-    if (!parent) return false;
+    return this._linkUp(d, parent) === true;
+  }
+
+  /** Link-Speed-Sensor der Ports: true/false, oder null wenn kein solcher Sensor existiert */
+  _linkUp(d, parent) {
+    if (!parent) return null;
     const st = this._hass.states;
     const parentStates = parent.entityIds.map((id) => st[id]).filter(Boolean);
     const opts = { deviceName: parent.haName, entities: this._hass.entities };
-    return parsePorts(d.cfg?.switch_port).some((p) => {
-      const s = findPortEntity(parentStates, p, "link", opts);
-      return s && Number(s.state) > 0;
-    });
+    const sensors = parsePorts(d.cfg?.switch_port).map((p) => findPortEntity(parentStates, p, "link", opts)).filter(Boolean);
+    if (!sensors.length) return null;
+    return sensors.some((s) => Number(s.state) > 0);
   }
 
   /** PoE-Steuerung der Ports eines Geräts: Schalter "Port PoE" und Button "Power Cycle" am übergeordneten Gerät */
@@ -450,6 +454,11 @@ class UnifiNetworkCard extends HTMLElement {
       const flow = cfg.show_flows ? this._flow(d, byId[d.parent]) : null;
       // Externes Gerät mit Status-Entität, die „offline“ meldet, aber am Port aktiv ist (Link, PoE oder Datenverkehr): online
       if (d.external && !s.online && this._portActive(d, byId[d.parent], flow)) s.online = true;
+      // Ohne eigene Status-Entität: Standard ist der Link-Speed-Sensor des Ports (Verkabelung steht, nicht Gerätezustand)
+      if (d.external && !d.entityIds[0]) {
+        const up = this._linkUp(d, byId[d.parent]);
+        if (up !== null) s.online = up || this._portActive(d, byId[d.parent], flow);
+      }
       const item = { ...d, ...s, flow, clients: this._clients(d), restart: this._restart(d) };
       item.poeCtl = this._poeControls(item, byId[d.parent]);
       return item;

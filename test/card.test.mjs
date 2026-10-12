@@ -476,3 +476,20 @@ test("Externes Gerät mit veralteter Status-Entität bleibt online, wenn der Por
   off.hass = { ...h, states: withIds({ ...h.states, "sensor.sw_port_6_link_speed": state("unavailable", { friendly_name: "Switch Keller Port 6 Link Speed" }) }) };
   assert.match(off.shadowRoot.innerHTML, /tile off ext/);
 });
+
+test("Externes Gerät ohne Status-Entität: Link-Speed-Sensor des Ports ist der Standard", () => {
+  const mk = (speed) => ({
+    ...hass,
+    entities: { ...hass.entities, "sensor.sw_port_6_link_speed": ent("sensor.sw_port_6_link_speed", "sw", "unifi_network_plus") },
+    states: withIds({ ...hass.states, "sensor.sw_port_6_link_speed": state(speed, { friendly_name: "Switch Keller Port 6 Link Speed" }) }),
+  });
+  const cfg = { external_devices: [{ name: "NAS", parent: "sw", switch_port: "6" }] };
+  const up = new Card();
+  up.setConfig(cfg);
+  up.hass = mk("1000");
+  assert.match(up.shadowRoot.innerHTML, /tile on ext/);
+  const down = new Card();
+  down.setConfig(cfg);
+  down.hass = mk("0");
+  assert.match(down.shadowRoot.innerHTML, /tile off ext/);
+});

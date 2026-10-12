@@ -205,7 +205,7 @@ Name, übergeordnetes Gerät, Port (mehrere Ports zum selben Gerät = Link Aggre
 falls vorhanden, den Tracker des Geräts als Status-Entität. Unbelegte Ports werden ignoriert, vorhandene externe Geräte nicht
 erneut vorgeschlagen.
 
-**Status externer Geräte:** Vorgeschlagene Geräte nutzen den Link-Speed-Sensor ihres Ports als Status-Entität (verfügbar, solange das Kabel
+**Status externer Geräte:** Ohne eigene Status-Entität gilt standardmäßig der Link-Speed-Sensor des Ports (Kabel steckt = online, kein Link = offline); gibt es keinen solchen Sensor, bleibt das Gerät online. Vorgeschlagene Geräte nutzen den Link-Speed-Sensor ihres Ports als Status-Entität (verfügbar, solange das Kabel
 steckt). Meldet die Status-Entität eines externen Geräts „offline“, das Gerät ist aber am Port aktiv (Link-Speed > 0, PoE-Leistung oder
 Datenverkehr), zeigt die Karte es als online an.
 
