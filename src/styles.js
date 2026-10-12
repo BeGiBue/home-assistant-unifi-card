@@ -5,6 +5,7 @@
 export const styles = `
   :host { display: block; }
   ha-card {
+    display: block;
     position: relative;
     padding: 16px;
     overflow-x: auto;
@@ -66,7 +67,7 @@ export const styles = `
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; justify-items: center; }
 
   /* ---- Baum ---- */
-  ul.tree, ul.tree ul { list-style: none; margin: 0; padding: 0; display: flex; justify-content: center; align-items: flex-start; }
+  ul.tree, ul.tree ul { list-style: none; margin: 0; padding: 0; display: flex; justify-content: safe center; align-items: flex-start; }
   ul.tree ul { padding-top: 14px; position: relative; }
   ul.tree ul::before { content: ""; position: absolute; top: 0; left: calc(50% - 1px); width: 2px; height: 14px; background: var(--unifi-link-off); }
   ul.tree ul.on::before { background: var(--unifi-link-on); }
@@ -134,6 +135,45 @@ export const styles = `
   .dlg dl.info dt { color: var(--secondary-text-color); }
   .dlg dl.info dd { margin: 0; font-variant-numeric: tabular-nums; }
   .dlg .sub { font-size: .85em; color: var(--secondary-text-color); }
+
+  /* ---- Schmale Displays: kompakt (7"-Display, iPad hochkant) und Liste (Handy-Breite) ---- */
+  ha-card[data-d="compact"], ha-card[data-d="list"] { padding: 10px; }
+  ha-card[data-d="compact"] .head h2, ha-card[data-d="list"] .head h2 { font-size: 1.1em; }
+  ha-card[data-d="compact"] .head, ha-card[data-d="list"] .head { margin-bottom: 10px; }
+  ha-card[data-d="compact"] .ping, ha-card[data-d="list"] .ping { grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); gap: 8px; }
+  ha-card[data-d="compact"] .tile { width: 90px; min-width: 0; padding: 6px 2px; }
+  ha-card[data-d="compact"] .img { width: 42px; height: 42px; margin-bottom: 4px; }
+  ha-card[data-d="compact"] .img ha-icon { --mdc-icon-size: 34px; }
+  ha-card[data-d="compact"] .name { font-size: .78em; }
+  ha-card[data-d="compact"] .sub { font-size: .64em; }
+  ha-card[data-d="compact"] ul.tree li { padding: 2px 2px 0; }
+  ha-card[data-d="compact"] ul.tree ul { padding-top: 10px; }
+  ha-card[data-d="compact"] ul.tree ul::before { height: 10px; }
+  ha-card[data-d="compact"] .link { height: 44px; }
+  ha-card[data-d="compact"] .chip { font-size: .66em; padding: 1px 4px; }
+  ha-card[data-d="compact"] .cl { font-size: .68em; margin-top: 3px; }
+  ha-card[data-d="compact"] .budget .txt { font-size: .64em; }
+
+  ha-card[data-d="list"] ul.tree, ha-card[data-d="list"] ul.tree ul { flex-direction: column; align-items: stretch; justify-content: flex-start; }
+  ha-card[data-d="list"] ul.tree ul { padding-top: 0; }
+  ha-card[data-d="list"] ul.tree ul::before { display: none; }
+  ha-card[data-d="list"] ul.tree li { padding: 0; align-items: stretch; border-left: 2px solid var(--unifi-link-off); }
+  ha-card[data-d="list"] ul.tree li.on { border-left-color: var(--unifi-link-on); }
+  ha-card[data-d="list"] ul.tree.root > li { border-left: 0; }
+  ha-card[data-d="list"] ul.tree li::before, ha-card[data-d="list"] ul.tree li::after { display: none; }
+  ha-card[data-d="list"] ul.tree li > .tile { order: 1; }
+  ha-card[data-d="list"] ul.tree li > .link { order: 2; height: auto; min-height: 0; width: auto; margin: 0 0 4px 58px; }
+  ha-card[data-d="list"] ul.tree li > ul { order: 3; }
+  ha-card[data-d="list"] .link .stem, ha-card[data-d="list"] .link .lines { display: none; }
+  ha-card[data-d="list"] .chip { position: static; transform: none; display: inline-block; font-size: .7em; padding: 1px 6px; }
+  ha-card[data-d="list"] ul.tree ul { margin-left: 10px; margin-top: 4px; }
+  ha-card[data-d="list"] ul.tree li { margin-bottom: 4px; padding-left: 8px; }
+  ha-card[data-d="list"] ul.tree.root > li { padding-left: 0; }
+  ha-card[data-d="list"] .tile { align-content: center; width: auto; min-width: 0; display: grid; grid-template-columns: 48px minmax(0, 1fr); column-gap: 10px; align-items: center; text-align: left; padding: 6px 10px; }
+  ha-card[data-d="list"] .tile > :not(.img) { grid-column: 2; min-width: 0; }
+  ha-card[data-d="list"] .img { grid-row: 1 / span 6; width: 44px; height: 44px; margin: 0; }
+  ha-card[data-d="list"] .img ha-icon { --mdc-icon-size: 36px; }
+  ha-card[data-d="list"] .cl { justify-self: start; margin-top: 3px; }
 
   /* ---- Ping / Latenz ---- */
   .ping { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }

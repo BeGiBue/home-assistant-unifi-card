@@ -28,6 +28,16 @@ Per Klick auf den Button (öffnet die Repository-Seite in deiner Home-Assistant-
 nach `/config/www/` kopieren und unter *Einstellungen → Dashboards → Ressourcen* als **JavaScript-Modul**
 `/local/unifi-network-card.js` hinzufügen.
 
+## Schmale Displays (7"-Display, iPad hochkant)
+
+Die Karte passt sich der verfügbaren Breite an: Passt der Baum nicht mehr nebeneinander, wechselt sie erst auf **kompakte Kacheln**,
+dann auf eine **Liste** (Geräte untereinander, Kind-Geräte eingerückt, Durchsatz und PoE unter der Kachel). Beim Drehen des iPads oder
+Ändern der Fenstergröße wird neu gemessen. Mit `density` lässt sich das festlegen:
+
+```yaml
+density: auto      # auto (Standard) | normal | compact | list
+```
+
 ## Verwendung
 
 Die Karte lässt sich über den Karten-Dialog („UniFi Network Card“) mit dem visuellen Editor konfigurieren.

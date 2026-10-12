@@ -114,6 +114,20 @@ class UnifiNetworkCardEditor extends HTMLElement {
               },
             },
           },
+          {
+            name: "density",
+            selector: {
+              select: {
+                mode: "dropdown",
+                options: [
+                  { value: "auto", label: t("e_density_auto") },
+                  { value: "normal", label: t("e_density_normal") },
+                  { value: "compact", label: t("e_density_compact") },
+                  { value: "list", label: t("e_density_list") },
+                ],
+              },
+            },
+          },
           { name: "show_offline", selector: { boolean: {} } },
           { name: "show_flows", selector: { boolean: {} } },
           { name: "animate_flows", selector: { boolean: {} } },
@@ -263,6 +277,7 @@ class UnifiNetworkCardEditor extends HTMLElement {
       title: "e_title",
       config_entry: "e_config_entry",
       layout: "e_layout",
+      density: "e_density",
       show_offline: "e_show_offline",
       show_flows: "e_show_flows",
       animate_flows: "e_animate",

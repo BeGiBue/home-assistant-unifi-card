@@ -51,6 +51,52 @@ class UnifiNetworkCard extends HTMLElement {
     this.attachShadow({ mode: "open" });
     this._devices = [];
     this._sig = "";
+    this._density = "normal";
+  }
+
+  connectedCallback() {
+    if (typeof ResizeObserver === "undefined" || this._ro) return;
+    // Bei Breitenänderung (Drehen des iPads, Fenstergröße, Layout) neu einpassen
+    this._ro = new ResizeObserver(() => {
+      const w = Math.round(this.clientWidth || 0);
+      if (w && w !== this._lastW) this._fit();
+    });
+    this._ro.observe(this);
+  }
+
+  disconnectedCallback() {
+    if (this._ro) this._ro.disconnect();
+    this._ro = null;
+  }
+
+  /**
+   * Wählt die Dichte (normal -> kompakt -> Liste), sodass der Baum ohne seitliches Scrollen passt.
+   * Feste Vorgabe über die Option `density`; „auto“ misst den Baum im DOM.
+   */
+  _fit() {
+    const card = this.shadowRoot?.querySelector?.("ha-card");
+    if (!card || !this._config) return;
+    if (!card.querySelector) return;
+    const want = this._config.density || "auto";
+    const levels = ["normal", "compact", "list"];
+    const tree = card.querySelector("ul.tree.root");
+    if (want !== "auto") {
+      this._density = levels.includes(want) ? want : "normal";
+    } else if (!tree || !card.clientWidth) {
+      this._density = "normal";
+    } else {
+      this._lastW = Math.round(this.clientWidth || 0);
+      let chosen = "list";
+      for (const l of levels) {
+        card.dataset.d = l;
+        if (tree.scrollWidth <= tree.clientWidth + 1) {
+          chosen = l;
+          break;
+        }
+      }
+      this._density = chosen;
+    }
+    card.dataset.d = this._density;
   }
 
   /* ---- Home-Assistant-Schnittstelle ---- */
@@ -79,6 +125,7 @@ class UnifiNetworkCard extends HTMLElement {
       show_wan: true,
       managed: false,
       swap_port_direction: false,
+      density: "auto",
       latency_entities: [],
       devices: [],
       external_devices: [],
@@ -707,9 +754,11 @@ class UnifiNetworkCard extends HTMLElement {
 
     this.shadowRoot.innerHTML = `
       <style>${styles}</style>
-      <ha-card class="${cfg.animate_flows ? "anim" : ""}" style="${esc(vars)}">
+      <ha-card class="${cfg.animate_flows ? "anim" : ""}" data-d="${cfg.layout === "grid" ? "normal" : this._density || "normal"}" style="${esc(vars)}">
         ${header}${body}${this._wanHtml(model?.wan, locale, t)}${this._latencyHtml(model?.latency, locale, t)}${legend}${this._confirmHtml(t)}
       </ha-card>`;
+
+    if (cfg.layout !== "grid") this._fit();
 
     // Bild-Fallback ohne Inline-Handler
     this.shadowRoot.querySelectorAll(".img img").forEach((img) => {
