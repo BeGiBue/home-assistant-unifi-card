@@ -196,6 +196,15 @@ external_devices:
 Ohne `entity` gilt das Gerät als online. `poe_entity`, `down_entity` und `up_entity` funktionieren wie bei
 UniFi-Geräten. Ohne `parent` ordnet die Automatik das Gerät wie einen Access Point ein.
 
+## Vorschläge für externe Geräte
+
+Mit UniFi Network+ kennt die Karte die Portbelegung: Der Sensor „Port N Link Speed“ nennt das Gerät am anderen Kabelende.
+Unter den externen Geräten im Editor schlägt der Button **„Externe Geräte aus der Portbelegung vorschlagen“** alle Geräte vor,
+die an einem Port hängen, aber kein UniFi-Gerät sind (NAS, Drucker, PC …). Du wählst aus, was übernommen wird. Die Karte füllt
+Name, übergeordnetes Gerät, Port (mehrere Ports zum selben Gerät = Link Aggregation), ein passendes Symbol, die IP-Adresse und,
+falls vorhanden, den Tracker des Geräts als Status-Entität. Unbelegte Ports werden ignoriert, vorhandene externe Geräte nicht
+erneut vorgeschlagen.
+
 ## Link Aggregation und zwei Verbindungen
 
 **Link Aggregation (z. B. NAS mit zwei Kabeln):** Trage bei `switch_port` mehrere Ports ein, etwa `"6, 7"`.

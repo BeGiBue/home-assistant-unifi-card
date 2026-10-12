@@ -524,3 +524,77 @@ export function mergeLatencyEntries(existing, defs, states, wanLabel) {
   });
   return { entries: out, added };
 }
+
+const ICON_GUESS = [
+  [/nas|synology|diskstation|qnap|truenas|unraid/i, "mdi:nas"],
+  [/drucker|printer|brother|epson|canon|hp[\s-]?(laser|officejet)/i, "mdi:printer"],
+  [/macbook|laptop|notebook|thinkpad/i, "mdi:laptop"],
+  [/imac|mac[\s-]?(mini|studio|pro)?$|desktop|(^|[\s-])pc($|[\s-])|workstation/i, "mdi:desktop-tower-monitor"],
+  [/server|proxmox|esxi|docker/i, "mdi:server"],
+  [/\btv\b|fernseher|television|samsung[\s-]?q|lg[\s-]?(oled|webos)|apple[\s-]?tv|chromecast|fire[\s-]?tv|shield/i, "mdi:television"],
+  [/playstation|ps[345]|xbox|nintendo|switch[\s-]?oled/i, "mdi:controller"],
+  [/home[\s-]?assistant|homeassistant|raspberry|\bpi\b|\bha\b/i, "mdi:home-assistant"],
+  [/hue|bridge|zigbee|shelly|tasmota/i, "mdi:lightning-bolt-circle"],
+  [/sonos|denon|marantz|yamaha|receiver|avr/i, "mdi:speaker"],
+  [/camera|kamera|cam\b/i, "mdi:cctv"],
+  [/switch|hub/i, "mdi:switch"],
+];
+
+/**
+ * Vorschläge für externe Geräte aus der Portbelegung: Geräte, die an einem Port des Switches/Gateways hängen
+ * (Sensor „Port N Link Speed“ von UniFi Network+ mit connected_device/connected_mac), aber kein UniFi-Gerät sind.
+ * Mehrere Ports zum selben Gerät ergeben eine Link Aggregation. Bereits vorhandene externe Geräte werden übersprungen.
+ * Ergebnis: [{ name, parent, parentName, ports, ip, mac, icon, entity }]
+ */
+export function suggestExternalDevices(list, byDevice, states, entities = {}, existing = []) {
+  const norm = (s) => String(s || "").trim().toLowerCase();
+  const devs = list.map((d) => ({
+    id: d.id,
+    name: d.name_by_user || d.name || "",
+    type: typeOf(d.model || ""),
+    mac: ((d.connections || []).find((c) => c && c[0] === "mac") || [])[1] || "",
+    entityIds: (byDevice[d.id] || []).map((e) => e.entity_id),
+  }));
+  const knownMac = new Set(devs.map((d) => norm(d.mac)).filter(Boolean));
+  const knownName = new Set(devs.map((d) => norm(d.name)).filter(Boolean));
+  const groups = {};
+  devs.forEach((p) => {
+    if (p.type !== "switch" && p.type !== "gateway") return;
+    p.entityIds.forEach((id) => {
+      const s = states?.[id];
+      if (!s) return;
+      const a = s.attributes || {};
+      const k = portSensorKey({ entity_id: id, attributes: a }, { deviceName: p.name, entities });
+      if (!k || k.kind !== "link" || !k.label) return;
+      if (!a.connected_device && !a.connected_mac) return;
+      if ((a.connected_mac && knownMac.has(norm(a.connected_mac))) || (a.connected_device && knownName.has(norm(a.connected_device)))) return; // UniFi-Gerät
+      const m = /^(?:port|anschluss)\s*0*(\d+)$/i.exec(k.label);
+      const portId = m ? Number(m[1]) : k.label;
+      const key = `${p.id}|${norm(a.connected_mac) || norm(a.connected_device)}`;
+      const g = (groups[key] ||= { name: a.connected_device || a.connected_mac, parent: p.id, parentName: p.name, ports: [], ip: a.connected_ip || "", mac: a.connected_mac || "" });
+      if (!g.ports.includes(portId)) g.ports.push(portId);
+      if (!g.ip && a.connected_ip) g.ip = a.connected_ip;
+    });
+  });
+  const skip = (g) =>
+    (existing || []).some((e) => {
+      if (!e) return false;
+      if (norm(e.name) === norm(g.name)) return true;
+      const ep = parsePorts(e.switch_port).map(String);
+      return e.parent === g.parent && g.ports.some((p) => ep.includes(String(p)));
+    });
+  const trackers = Object.values(states || {}).filter((s) => s.entity_id.startsWith("device_tracker."));
+  return Object.values(groups)
+    .filter((g) => !skip(g))
+    .map((g) => {
+      g.ports.sort((x, y) => (typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y))));
+      const tr = trackers.find((s) => {
+        const a = s.attributes || {};
+        const mac = a.mac || a.mac_address;
+        return (g.mac && mac && norm(mac) === norm(g.mac)) || (a.friendly_name && norm(a.friendly_name) === norm(g.name));
+      });
+      const icon = (ICON_GUESS.find(([re]) => re.test(g.name)) || [])[1] || "mdi:ethernet";
+      return { ...g, icon, entity: tr?.entity_id || "" };
+    })
+    .sort((x, y) => x.parentName.localeCompare(y.parentName) || String(x.ports[0]).localeCompare(String(y.ports[0]), undefined, { numeric: true }));
+}

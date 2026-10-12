@@ -20,6 +20,7 @@ import {
   portSensorKey,
   detectLatency,
   detectWan,
+  suggestExternalDevices,
   mergeLatencyEntries,
   formatDuration,
   uptimeSeconds,
@@ -346,4 +347,36 @@ test("mergeLatencyEntries ergänzt nur fehlende Ping-Sensoren; detectWan erkennt
   const r2 = mergeLatencyEntries([r1.entries[0]], defs, states, "WAN");
   assert.equal(r2.added, 1);
   assert.deepEqual(detectWan(states), { down: "sensor.wan_download", up: "sensor.wan_upload" });
+});
+
+test("suggestExternalDevices schlägt Nicht-UniFi-Geräte an belegten Ports vor", () => {
+  const list = [
+    { id: "gw", name: "Router", model: "UDRULT" },
+    { id: "sw", name: "Keller", model: "US16P150" },
+    { id: "ap", name: "Werkstatt", model: "U7PG2", connections: [["mac", "aa:00"]] },
+  ];
+  const ids = ["l1", "l2", "l5", "l6", "l7", "l9"].map((x) => `sensor.k_${x}`);
+  const byDevice = { gw: [], sw: ids.map((id) => ({ entity_id: id, device_id: "sw" })), ap: [] };
+  const mk = (n, a) => ({ entity_id: "", state: "1000", attributes: { friendly_name: n, ...a } });
+  const states = {
+    "sensor.k_l1": mk("Keller Port 1 Verbindungsgeschwindigkeit", { connected_device: "Router" }),
+    "sensor.k_l2": mk("Keller Port 2 Verbindungsgeschwindigkeit", { connected_mac: "AA:00" }),
+    "sensor.k_l5": mk("Keller NAS Verbindungsgeschwindigkeit", { connected_device: "Synology DS923", connected_mac: "00:11", connected_ip: "192.168.1.30" }),
+    "sensor.k_l6": mk("Keller NAS 2 Verbindungsgeschwindigkeit", { connected_device: "Synology DS923", connected_mac: "00:11" }),
+    "sensor.k_l7": mk("Keller Port 7 Verbindungsgeschwindigkeit", { connected_device: "Drucker" }),
+    "sensor.k_l9": mk("Keller Port 9 Verbindungsgeschwindigkeit", {}), // nicht belegt
+    "device_tracker.nas": { entity_id: "device_tracker.nas", state: "home", attributes: { friendly_name: "Synology DS923", mac: "00:11" } },
+  };
+  Object.keys(states).forEach((k) => (states[k].entity_id = k));
+  const r = suggestExternalDevices(list, byDevice, states, {}, []);
+  assert.deepEqual(r.map((g) => g.name).sort(), ["Drucker", "Synology DS923"]); // Router und AP sind UniFi-Geräte
+  const nas = r.find((g) => g.name.startsWith("Syn"));
+  assert.deepEqual(nas.ports, ["NAS", "NAS 2"]);
+  assert.equal(nas.ip, "192.168.1.30");
+  assert.equal(nas.icon, "mdi:nas");
+  assert.equal(nas.entity, "device_tracker.nas");
+  assert.equal(r.find((g) => g.name === "Drucker").icon, "mdi:printer");
+  // bereits vorhandene externe Geräte werden nicht erneut vorgeschlagen
+  const r2 = suggestExternalDevices(list, byDevice, states, {}, [{ name: "Drucker" }, { name: "x", parent: "sw", switch_port: "NAS" }]);
+  assert.deepEqual(r2, []);
 });

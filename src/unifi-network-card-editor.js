@@ -1,5 +1,5 @@
 import { localize } from "./localize.js";
-import { collectUnifiDevices, typeOf, TYPE_ORDER, buildAutoDeviceEntries, detectLatency, detectWan, mergeLatencyEntries } from "./utils.js";
+import { collectUnifiDevices, typeOf, TYPE_ORDER, buildAutoDeviceEntries, detectLatency, detectWan, mergeLatencyEntries, suggestExternalDevices } from "./utils.js";
 
 /**
  * Visueller Editor auf Basis von <ha-form>: alle Einstellungen laufen über
@@ -275,6 +275,59 @@ class UnifiNetworkCardEditor extends HTMLElement {
     return { config, count: changed + lat.added + wanAdded + (this._config.managed === true ? 0 : 1) };
   }
 
+  /** Externe Geräte aus der Portbelegung vorschlagen: Auswahl anzeigen, Übernahme per Button */
+  _suggest() {
+    const t = localize(this._hass);
+    const { list, byDevice } = collectUnifiDevices(this._hass, this._config.config_entry);
+    const items = suggestExternalDevices(list, byDevice, this._hass.states, this._hass.entities, this._config.external_devices || []);
+    this._suggestions = items;
+    this._suggestList.textContent = "";
+    if (!items.length) {
+      this._suggestStatus.textContent = t("e_suggest_none");
+      return;
+    }
+    this._suggestStatus.textContent = t("e_suggest_found").replace("{n}", String(items.length));
+    items.forEach((g, i) => {
+      const label = document.createElement("label");
+      label.style.cssText = "display:flex;gap:8px;align-items:flex-start;cursor:pointer";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = true;
+      cb.dataset.i = String(i);
+      const ports = g.ports.every((p) => typeof p === "number") ? `${t("port")} ${g.ports.join(", ")}` : g.ports.join(", ");
+      const text = document.createElement("span");
+      text.textContent = `${g.name} – ${g.parentName} · ${ports}${g.ports.length > 1 ? ` (${t("lag")} ×${g.ports.length})` : ""}${g.ip ? ` · ${g.ip}` : ""}`;
+      label.append(cb, text);
+      this._suggestList.appendChild(label);
+    });
+    const apply = document.createElement("ha-button");
+    apply.textContent = t("e_suggest_apply");
+    apply.addEventListener("click", () => this._applySuggestions());
+    this._suggestList.appendChild(apply);
+  }
+
+  _applySuggestions() {
+    const t = localize(this._hass);
+    const chosen = [...this._suggestList.querySelectorAll("input[type=checkbox]")]
+      .filter((cb) => cb.checked)
+      .map((cb) => this._suggestions[Number(cb.dataset.i)]);
+    if (!chosen.length) return;
+    const external = [...(this._config.external_devices || [])];
+    chosen.forEach((g) => {
+      const e = { name: g.name, icon: g.icon, parent: g.parent, switch_port: g.ports.join(", "), link_type: "lan" };
+      if (g.entity) e.entity = g.entity;
+      if (g.ip) e.ip = g.ip;
+      external.push(e);
+    });
+    const config = { ...this._config, external_devices: external };
+    this._config = config;
+    this._emitted = JSON.stringify(config);
+    this._setData();
+    this._suggestList.textContent = "";
+    this._suggestStatus.textContent = t("e_suggest_done").replace("{n}", String(chosen.length));
+    this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));
+  }
+
   _applyLinks(silent = false) {
     const t = localize(this._hass);
     const { config, count } = this._detect();
@@ -350,7 +403,19 @@ class UnifiNetworkCardEditor extends HTMLElement {
       row.append(this._applyBtn, this._status);
       this.appendChild(row);
       this.appendChild(this._formB);
+      // Vorschläge für externe Geräte aus der Portbelegung
+      const sug = document.createElement("div");
+      sug.style.cssText = "margin:8px 0 16px;display:flex;flex-direction:column;gap:8px;align-items:flex-start";
+      this._suggestBtn = document.createElement("ha-button");
+      this._suggestBtn.addEventListener("click", () => this._suggest());
+      this._suggestList = document.createElement("div");
+      this._suggestList.style.cssText = "display:flex;flex-direction:column;gap:6px;color:var(--primary-text-color)";
+      this._suggestStatus = document.createElement("div");
+      this._suggestStatus.style.cssText = "font-size:.85em;color:var(--secondary-text-color)";
+      sug.append(this._suggestBtn, this._suggestStatus, this._suggestList);
+      this.appendChild(sug);
     }
+    this._suggestBtn.textContent = localize(this._hass)("e_suggest");
     this._applyBtn.textContent = localize(this._hass)("e_apply");
     // hass wird bei jeder Zustandsänderung neu gesetzt: nur die Referenz weiterreichen.
     this._form.hass = this._hass;
