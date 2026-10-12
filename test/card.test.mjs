@@ -282,3 +282,15 @@ test("Internet-Durchsatz wird automatisch erkannt (Speedtest ignoriert) und ist 
   off.hass = h;
   assert.doesNotMatch(off.shadowRoot.innerHTML, /Internet/);
 });
+
+test("Verbindungslinien tragen den Online-Status (verbunden / offline)", () => {
+  const card = new Card();
+  card.setConfig({});
+  card.hass = { ...hass, states: withIds({ ...hass.states, "device_tracker.ap": state("not_home") }) };
+  const html = card.shadowRoot.innerHTML;
+  assert.match(html, /<li class="on">/);
+  assert.match(html, /<li class="off">/);
+  assert.match(html, /class="stem on"/);
+  assert.match(html, /class="stem off"/);
+  assert.match(html, /<ul class="off">/); // Switch -> nur der (offline) AP darunter
+});

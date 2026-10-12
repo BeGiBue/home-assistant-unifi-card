@@ -446,10 +446,10 @@ class UnifiNetworkCard extends HTMLElement {
 
   _link(d, locale, t) {
     const f = d.flow;
-    if (!this._config.show_flows || !f) return `<div class="link"><div class="stem"></div></div>`;
+    if (!this._config.show_flows || !f) return `<div class="link"><div class="stem ${d.online ? 'on' : 'off'}"></div></div>`;
     const hasData = f.down != null || f.up != null;
     if (!d.online) {
-      return `<div class="link"><div class="stem"></div><div class="chip" style="left:calc(50% + 10px)"><span class="off">${esc(t("no_link"))}</span></div></div>`;
+      return `<div class="link"><div class="stem ${d.online ? 'on' : 'off'}"></div><div class="chip" style="left:calc(50% + 10px)"><span class="off">${esc(t("no_link"))}</span></div></div>`;
     }
     const lines = [];
     const dur = (v) => (v >= 100 ? 0.5 : v >= 10 ? 0.8 : v >= 1 ? 1.2 : 2);
@@ -460,7 +460,7 @@ class UnifiNetworkCard extends HTMLElement {
     if (f.up != null) lines.push(`<div class="fl u upw${f.up > 0.01 ? "" : " idle"}" style="--dur:${dur(f.up)}s"></div>`);
     if (!lines.length) {
       const tag = this._tag(f, t);
-      return `<div class="link"><div class="stem"></div>${tag ? `<div class="chip" style="left:calc(50% + 10px)">${tag}</div>` : ""}</div>`;
+      return `<div class="link"><div class="stem ${d.online ? 'on' : 'off'}"></div>${tag ? `<div class="chip" style="left:calc(50% + 10px)">${tag}</div>` : ""}</div>`;
     }
     const width = lines.length * 4 + (lines.length - 1) * 2;
     return `<div class="link"><div class="lines" style="width:${width}px;left:calc(50% - ${width / 2}px)">${lines.join("")}</div><div class="chip" style="left:calc(50% + ${width / 2 + 7}px)">${this._tag(f, t)}${this._chip(f, t, locale)}</div></div>`;
@@ -497,8 +497,8 @@ class UnifiNetworkCard extends HTMLElement {
   _treeHtml(items, locale, t) {
     const { roots, children } = buildTree(items);
     const node = (d, isRoot) => `
-      <li>${isRoot ? "" : this._link(d, locale, t)}${this._tile(d, locale, t)}
-        ${children[d.id] ? `<ul>${children[d.id].map((c) => node(c, false)).join("")}</ul>` : ""}
+      <li class="${d.online ? "on" : "off"}">${isRoot ? "" : this._link(d, locale, t)}${this._tile(d, locale, t)}
+        ${children[d.id] ? `<ul class="${children[d.id].some((c) => c.online) ? "on" : "off"}">${children[d.id].map((c) => node(c, false)).join("")}</ul>` : ""}
       </li>`;
     return `<ul class="tree root">${roots.map((d) => node(d, true)).join("")}</ul>`;
   }

@@ -9,6 +9,9 @@ export const styles = `
     padding: 16px;
     overflow-x: auto;
     --unifi-line: var(--divider-color, #3a3a3a);
+    /* Verbindungslinien: verbunden = Textfarbe des Themes (Schwarz im hellen Theme), offline = Grau */
+    --unifi-link-on: var(--primary-text-color, #000);
+    --unifi-link-off: var(--disabled-color, #9e9e9e);
     --unifi-tile: var(--secondary-background-color, #262626);
     --unifi-ok: var(--success-color, #4caf50);
     --unifi-bad: var(--error-color, #f44336);
@@ -65,10 +68,12 @@ export const styles = `
   /* ---- Baum ---- */
   ul.tree, ul.tree ul { list-style: none; margin: 0; padding: 0; display: flex; justify-content: center; align-items: flex-start; }
   ul.tree ul { padding-top: 14px; position: relative; }
-  ul.tree ul::before { content: ""; position: absolute; top: 0; left: calc(50% - 1px); width: 2px; height: 14px; background: var(--unifi-line); }
+  ul.tree ul::before { content: ""; position: absolute; top: 0; left: calc(50% - 1px); width: 2px; height: 14px; background: var(--unifi-link-off); }
+  ul.tree ul.on::before { background: var(--unifi-link-on); }
   ul.tree li { position: relative; padding: 2px 5px 0; display: flex; flex-direction: column; align-items: center; }
   ul.tree.root > li { padding-top: 0; }
-  ul.tree li::before, ul.tree li::after { content: ""; position: absolute; top: 0; height: 2px; width: 50%; background: var(--unifi-line); }
+  ul.tree li::before, ul.tree li::after { content: ""; position: absolute; top: 0; height: 2px; width: 50%; background: var(--unifi-link-off); }
+  ul.tree li.on::before, ul.tree li.on::after { background: var(--unifi-link-on); }
   ul.tree li::before { right: 50%; }
   ul.tree li::after { left: 50%; }
   ul.tree li:first-child::before, ul.tree li:last-child::after { display: none; }
@@ -77,7 +82,8 @@ export const styles = `
 
   .link { position: relative; height: 56px; width: 100%; }
   .link .lines { position: absolute; top: 0; bottom: 0; display: flex; gap: 2px; justify-content: space-between; }
-  .link .stem { position: absolute; top: 0; bottom: 0; left: calc(50% - 1px); width: 2px; background: var(--unifi-line); }
+  .link .stem { position: absolute; top: 0; bottom: 0; left: calc(50% - 1px); width: 2px; background: var(--unifi-link-off); }
+  .link .stem.on { background: var(--unifi-link-on); }
   .fl { position: relative; width: 4px; height: 100%; overflow: hidden; background: color-mix(in srgb, var(--c) 18%, transparent); }
   .fl::after { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(to bottom, var(--c) 0 6px, transparent 6px 12px); background-size: 4px 12px; }
   .fl.idle::after { display: none; }
