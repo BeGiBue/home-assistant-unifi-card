@@ -87,6 +87,7 @@ class UnifiNetworkCardEditor extends HTMLElement {
           { name: "show_clients", selector: { boolean: {} } },
           { name: "show_restart", selector: { boolean: {} } },
           { name: "show_latency", selector: { boolean: {} } },
+          { name: "show_wan", selector: { boolean: {} } },
           { name: "auto_parent", selector: { boolean: {} } },
         ],
       },
@@ -112,6 +113,8 @@ class UnifiNetworkCardEditor extends HTMLElement {
         title: t("e_images"),
         schema: [{ name: "image_base", selector: { text: {} } }],
       },
+      { name: "wan_down_entity", selector: { entity: { filter: { domain: "sensor" } } } },
+      { name: "wan_up_entity", selector: { entity: { filter: { domain: "sensor" } } } },
       { name: "latency_hours", selector: { number: { min: 1, max: 168, unit_of_measurement: "h", mode: "box" } } },
       {
         name: "latency_entities",
@@ -234,6 +237,9 @@ class UnifiNetworkCardEditor extends HTMLElement {
       show_latency: "e_show_latency",
       latency_entities: "e_latency",
       latency_hours: "e_latency_hours",
+      show_wan: "e_show_wan",
+      wan_down_entity: "e_wan_down",
+      wan_up_entity: "e_wan_up",
     }[schema.name];
     return key ? t(key) : schema.name;
   };
@@ -283,6 +289,7 @@ class UnifiNetworkCardEditor extends HTMLElement {
         show_clients: true,
         show_restart: true,
         show_latency: true,
+        show_wan: true,
         ...this._config,
       };
     }

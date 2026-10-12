@@ -70,6 +70,7 @@ class UnifiNetworkCard extends HTMLElement {
       show_clients: true,
       show_restart: true,
       show_latency: true,
+      show_wan: true,
       latency_entities: [],
       devices: [],
       external_devices: [],
@@ -249,6 +250,39 @@ class UnifiNetworkCard extends HTMLElement {
       .filter(Boolean);
   }
 
+  /** Internet-Durchsatz (WAN Download/Upload): konfiguriert oder am Namen erkannt */
+  _wan() {
+    const cfg = this._config;
+    if (cfg.show_wan === false) return [];
+    const st = this._hass.states;
+    const find = (re) =>
+      Object.values(st)
+        .filter((s) => s.entity_id.startsWith("sensor."))
+        .filter((s) => {
+          const txt = `${s.entity_id} ${s.attributes?.friendly_name || ""}`;
+          return /wan/i.test(txt) && re.test(txt) && !/speed_?test|usage|total|volume|latency|availab/i.test(txt) && !/wan_?[2-9]/i.test(s.entity_id);
+        })
+        .map((s) => s.entity_id)
+        .sort()[0];
+    const mk = (kind, own, re, label) => {
+      const id = own || find(re);
+      const s = id && st[id];
+      if (!s) return null;
+      const unit = s.attributes?.unit_of_measurement;
+      return {
+        kind,
+        entity: id,
+        label,
+        value: toMbit(numericState(s), unit || "Mbit/s"),
+        hist: (this._hist && this._hist[id]) || [],
+      };
+    };
+    return [
+      mk("down", cfg.wan_down_entity, /(download|downstream|_down\b|\bdown\b)/i, "legend_down"),
+      mk("up", cfg.wan_up_entity, /(upload|upstream|_up\b|\bup\b)/i, "legend_up"),
+    ].filter(Boolean);
+  }
+
   /** Verlauf der Latenz-Sensoren über die History-API laden (höchstens alle 5 Minuten) */
   _loadHistory(list) {
     const ids = list.map((l) => l.entity);
@@ -351,7 +385,8 @@ class UnifiNetworkCard extends HTMLElement {
       hasUplink: real.some((d) => byId[d.parent]?.type === "gateway" && (d.flow?.down != null || d.flow?.up != null)),
     };
     const latency = this._latency();
-    return { items: visible, summary, latency };
+    const wan = this._wan();
+    return { items: visible, summary, latency, wan };
   }
 
   _update() {
@@ -360,11 +395,12 @@ class UnifiNetworkCard extends HTMLElement {
       return;
     }
     const model = this._model();
-    this._loadHistory(model.latency);
+    this._loadHistory([...model.latency, ...model.wan]);
     const sig = JSON.stringify([
       model.items.map((d) => [d.id, d.name, d.online, d.update, d.flow, d.poeUsed, d.poeBudget, d.cfg?.image, d.clients, d.secondary, d.restart]),
       model.summary,
       model.latency.map((l) => [l.entity, l.name, l.icon, l.value, l.unit]),
+      model.wan.map((w) => [w.entity, w.value]),
       this._histVer,
       this._confirm,
       this._config,
@@ -475,6 +511,21 @@ class UnifiNetworkCard extends HTMLElement {
     }).join("");
   }
 
+  _wanHtml(list, locale, t) {
+    if (!list || !list.length) return "";
+    const arrow = { down: "↓", up: "↑" };
+    const cells = list
+      .map((w) => {
+        const sp = sparkline(w.hist);
+        const svg = sp
+          ? `<svg class="sp" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true"><path class="sa" d="${sp.area}"/><path class="sl" d="${sp.line}" vector-effect="non-scaling-stroke"/></svg>`
+          : "";
+        return `<div class="pg ${w.kind}" data-entity="${esc(w.entity)}" role="button" tabindex="0" title="${esc(w.entity)}">${svg}<div class="pc"><b class="ar ${w.kind} big">${arrow[w.kind]}</b><div><div class="pn">${esc(t(w.label))}</div><div class="pv">${esc(formatRate(w.value, locale))}</div></div></div></div>`;
+      })
+      .join("");
+    return `<h3 class="ph">${esc(t("internet"))}</h3><div class="ping">${cells}</div>`;
+  }
+
   _latencyHtml(list, locale, t) {
     if (!list || !list.length) return "";
     const fmt = (l) =>
@@ -531,7 +582,7 @@ class UnifiNetworkCard extends HTMLElement {
     this.shadowRoot.innerHTML = `
       <style>${styles}</style>
       <ha-card class="${cfg.animate_flows ? "anim" : ""}" style="${esc(vars)}">
-        ${header}${body}${this._latencyHtml(model?.latency, locale, t)}${legend}${this._confirmHtml(t)}
+        ${header}${body}${this._wanHtml(model?.wan, locale, t)}${this._latencyHtml(model?.latency, locale, t)}${legend}${this._confirmHtml(t)}
       </ha-card>`;
 
     // Bild-Fallback ohne Inline-Handler

@@ -105,6 +105,14 @@ der Kachel ein kleines Neustart-Symbol. Ein Klick fragt „… wirklich neu star
 wählst du einen anderen Button, mit `show_restart: false` blendest du alles aus. Der Button muss in Home Assistant
 aktiviert sein.
 
+## Internet-Durchsatz (WAN)
+
+Die Core-Integration liefert keinen WAN-Durchsatz. Mit einer Community-Integration wie
+[UniFi Network+](https://github.com/42bios/unifi-network-plus) (Sensoren „WAN Download/Upload“) zeigt die Karte
+unter der Topologie zwei Kacheln „Internet ↓/↑“ mit Verlauf. Die Sensoren werden am Namen erkannt
+(`WAN` + `Download`/`Upload`, ohne Speedtest); sonst wählst du sie mit `wan_down_entity` und `wan_up_entity`.
+Abschalten mit `show_wan: false`.
+
 ## Ping / Latenz
 
 Unter der Topologie zeigt die Karte die WAN-Latenz-Sensoren des Gateways (z. B.

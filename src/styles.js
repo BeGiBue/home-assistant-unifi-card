@@ -126,6 +126,9 @@ export const styles = `
   .pg .sp { position: absolute; inset: 0; width: 100%; height: 100%; }
   .pg .sa { fill: color-mix(in srgb, var(--primary-color, #03a9f4) 16%, transparent); }
   .pg .sl { fill: none; stroke: var(--primary-color, #03a9f4); stroke-width: 1.5; opacity: .8; }
+  .pg.dn .sa { fill: color-mix(in srgb, var(--unifi-down) 18%, transparent); } .pg.dn .sl { stroke: var(--unifi-down); }
+  .pg.up .sa { fill: color-mix(in srgb, var(--unifi-up) 18%, transparent); } .pg.up .sl { stroke: var(--unifi-up); }
+  .ar.big { font-size: 1.6em; line-height: 1; }
   .pc { position: relative; display: grid; grid-template-columns: auto 1fr; column-gap: 10px; align-items: center; padding: 10px 12px; --mdc-icon-size: 22px; }
   .pc ha-icon { grid-row: span 2; color: var(--primary-text-color); }
   .pn { font-size: .85em; font-weight: 500; color: var(--primary-text-color); }

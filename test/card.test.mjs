@@ -253,3 +253,32 @@ test("Ping-Sensoren werden automatisch erkannt, benannt und als Verlauf gezeichn
   off.hass = restartHass;
   assert.doesNotMatch(off.shadowRoot.innerHTML, /class="ping"/);
 });
+
+test("Internet-Durchsatz wird automatisch erkannt (Speedtest ignoriert) und ist überschreibbar", () => {
+  const h = {
+    ...restartHass,
+    states: withIds({
+      ...restartHass.states,
+      "sensor.gw_wan_download": state("250", { friendly_name: "WAN Download", unit_of_measurement: "Mbit/s" }),
+      "sensor.gw_wan_upload": state("40", { friendly_name: "WAN Upload", unit_of_measurement: "Mbit/s" }),
+      "sensor.gw_speedtest_download": state("900", { friendly_name: "Speedtest Download", unit_of_measurement: "Mbit/s" }),
+      "sensor.my_up": state("1", { friendly_name: "Mein Up", unit_of_measurement: "Gbit/s" }),
+    }),
+  };
+  const card = new Card();
+  card.setConfig({});
+  card.hass = h;
+  const html = card.shadowRoot.innerHTML;
+  assert.match(html, /Internet/);
+  assert.match(html, /250 Mb\/s/);
+  assert.match(html, /40,0 Mb\/s|40 Mb\/s/);
+  assert.doesNotMatch(html, /900 Mb\/s/);
+  const own = new Card();
+  own.setConfig({ wan_up_entity: "sensor.my_up" });
+  own.hass = h;
+  assert.match(own.shadowRoot.innerHTML, /1,0 Gb\/s|1 Gb\/s/);
+  const off = new Card();
+  off.setConfig({ show_wan: false });
+  off.hass = h;
+  assert.doesNotMatch(off.shadowRoot.innerHTML, /Internet/);
+});
