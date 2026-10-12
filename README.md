@@ -109,9 +109,14 @@ deaktiviert) und je Port **Download/Upload/PoE Power** (standardmäßig deaktivi
 heißen „{Portname} Download/Upload“. Erkannt wird der Port über den Namen „Port N“. Hast du Ports in UniFi umbenannt,
 gib die Sensoren am Gerät direkt an (`poe_entity`, `down_entity`, `up_entity`).
 
-**Editor-Button „Erkannte Zuordnung übernehmen“:** trägt die erkannte Zuordnung (übergeordnetes Gerät, Port und bei einem
-Port die Sensoren für PoE, Download und Upload) in die Geräte-Einstellungen ein. Es werden nur leere Felder gefüllt. Gelöschte
-Einträge übernimmt der Button beim nächsten Klick erneut.
+**Editor-Button „Automatische Erkennung neu starten“:** trägt die erkannte Zuordnung (übergeordnetes Gerät, Port und bei einem
+Port die Sensoren für PoE, Download und Upload) in die Geräte-Einstellungen ein. Was die Automatik geschrieben hat, merkt sich der
+Eintrag unter `auto_detected`. Ein erneuter Klick aktualisiert genau diese Felder (z. B. nach dem Umstecken eines Kabels).
+Selbst eingetragene oder nachträglich geänderte Werte werden nie überschrieben. Ist ein Gerät nicht mehr erkennbar,
+verschwinden nur die automatisch geschriebenen Felder.
+
+**PoE:** Wird ein Gerät nicht über PoE versorgt (Leistung 0 W oder kein PoE-Sensor), entfällt die PoE-Anzeige und die
+orangefarbene Linie an der Verbindung.
 
 **Benannte Ports und deutsche Namen:** Network+ benennt die Sensoren nach dem Port-Namen aus UniFi
 („Keller NAS Download“, „Keller Port 5 PoE-Leistung“). Die Karte erkennt sowohl „Port N“ als auch eigene Namen und

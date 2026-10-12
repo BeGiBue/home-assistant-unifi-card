@@ -384,7 +384,9 @@ class UnifiNetworkCard extends HTMLElement {
       const vals = list.map(conv).filter((v) => v !== null && v !== undefined);
       return vals.length ? vals.reduce((x, y) => x + y, 0) : null;
     };
-    return { ...base, poe: sum(poe, watt), down: sum(down, rate), up: sum(up, rate) };
+    // Wird das Gerät nicht über PoE versorgt (Leistung 0 oder nicht verfügbar), entfällt die PoE-Anzeige
+    const power = sum(poe, watt);
+    return { ...base, poe: power !== null && power > 0.05 ? power : null, down: sum(down, rate), up: sum(up, rate) };
   }
 
   _model() {

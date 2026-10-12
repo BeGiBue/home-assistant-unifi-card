@@ -356,3 +356,20 @@ test("Port am Switch wird automatisch zugeordnet (Link-Speed-Attribute von Netwo
   assert.match(html, /8,9 W/);
   assert.match(html, /↓<\/b> 38 Mb\/s/);
 });
+
+test("Ohne PoE-Versorgung entfällt die PoE-Anzeige", () => {
+  const h = {
+    ...hass,
+    states: withIds({
+      ...hass.states,
+      "sensor.sw_port_5_poe_power": state("0", { friendly_name: "Switch Keller Port 5 PoE Power", device_class: "power", unit_of_measurement: "W" }),
+    }),
+  };
+  const card = new Card();
+  card.setConfig({ devices: [{ device: "ap", switch_port: 5 }] });
+  card.hass = h;
+  const html = card.shadowRoot.innerHTML;
+  assert.doesNotMatch(html, /class="poe"/);
+  assert.doesNotMatch(html, /fl p/);
+  assert.match(html, /↓<\/b> 38 Mb\/s/); // Datenfluss bleibt
+});

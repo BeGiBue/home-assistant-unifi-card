@@ -242,7 +242,7 @@ test("buildAutoDeviceEntries füllt nur leere Felder und lässt LAG-Entitäten w
   assert.equal(ap.poe_entity, "sensor.sw_p5_poe");
   assert.equal(ap.switch_port, "5");
   const nas = r.devices.find((d) => d.device === "nas");
-  assert.deepEqual(nas, { device: "nas", parent: "sw", switch_port: "6, 7" });
+  assert.deepEqual(nas, { device: "nas", parent: "sw", switch_port: "6, 7", auto_detected: { parent: "sw", switch_port: "6, 7" } });
   assert.equal(r.changed, 2);
   // Zweiter Lauf ändert nichts mehr
   assert.equal(buildAutoDeviceEntries(list, byDevice, states, r.devices).changed, 0);
@@ -274,4 +274,40 @@ test("Ports mit eigenem Namen und deutsche Sensornamen (UniFi Network+)", () => 
   // translation_key macht die Art sprachunabhängig
   const ents = { "sensor.k_nas_ls": { translation_key: "port_link_speed" } };
   assert.equal(portSensorKey(states["sensor.k_nas_ls"], { deviceName: "Keller", entities: ents }).label, "NAS");
+});
+
+test("Erneute Erkennung aktualisiert nur automatische Felder, manuelle bleiben", () => {
+  const list = [
+    { id: "sw", name: "Keller", model: "US16P150" },
+    { id: "ap", name: "Werkstatt", model: "U7PG2", connections: [["mac", "aa:00"]] },
+  ];
+  const e = (id) => ({ entity_id: id, device_id: "sw" });
+  const byDevice = { sw: [e("sensor.l5"), e("sensor.l6"), e("sensor.d5"), e("sensor.d6")], ap: [] };
+  const mk = (id, n, a = {}) => [id, { entity_id: id, state: "1", attributes: { friendly_name: n, ...a } }];
+  const base = {
+    ...Object.fromEntries([mk("sensor.d5", "Keller Port 5 Download", { device_class: "data_rate" }), mk("sensor.d6", "Keller Port 6 Download", { device_class: "data_rate" })]),
+  };
+  const at = (port) => ({
+    ...base,
+    ...Object.fromEntries([
+      mk("sensor.l5", "Keller Port 5 Link Speed", port === 5 ? { connected_mac: "AA:00" } : {}),
+      mk("sensor.l6", "Keller Port 6 Link Speed", port === 6 ? { connected_mac: "AA:00" } : {}),
+    ]),
+  });
+  const r1 = buildAutoDeviceEntries(list, byDevice, at(5), []);
+  assert.equal(r1.devices[0].switch_port, "5");
+  assert.equal(r1.devices[0].up_entity, "sensor.d5");
+  // Kabel umgesteckt: automatische Felder folgen
+  const r2 = buildAutoDeviceEntries(list, byDevice, at(6), r1.devices);
+  assert.equal(r2.devices[0].switch_port, "6");
+  assert.equal(r2.devices[0].up_entity, "sensor.d6");
+  // Nutzer ändert den Port von Hand: bleibt beim nächsten Lauf erhalten
+  const manual = r2.devices.map((d) => ({ ...d, switch_port: "9" }));
+  const r3 = buildAutoDeviceEntries(list, byDevice, at(5), manual);
+  assert.equal(r3.devices[0].switch_port, "9");
+  assert.equal(r3.devices[0].auto_detected.switch_port, undefined);
+  // Gerät nicht mehr erkannt: nur automatische Felder verschwinden, Eintrag mit Namen bleibt
+  const named = r1.devices.map((d) => ({ ...d, name: "Mein AP" }));
+  const r4 = buildAutoDeviceEntries(list, byDevice, at(0), named);
+  assert.deepEqual(r4.devices, [{ device: "ap", name: "Mein AP" }]);
 });

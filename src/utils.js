@@ -304,8 +304,45 @@ export function buildAutoDeviceEntries(list, byDevice, states, existing = [], en
     entityIds: (byDevice[d.id] || []).map((e) => e.entity_id),
   }));
   const links = detectLinks(devs, states, entities);
-  const out = (existing || []).map((e) => ({ ...e }));
+  const out = (existing || []).map((e) => ({ ...e, ...(e.auto_detected ? { auto_detected: { ...e.auto_detected } } : {}) }));
+  const empty = (v) => v === undefined || v === null || v === "";
   let changed = 0;
+
+  // Felder, die die Automatik geschrieben hat, merkt sich der Eintrag in `auto_detected` (Feld -> Wert).
+  // Beim erneuten Lauf werden nur Felder aktualisiert, die noch genau diesen Wert haben.
+  // Alles andere (selbst eingetragen oder nachträglich geändert) bleibt unangetastet.
+  const apply = (entry, wanted) => {
+    const auto = (entry.auto_detected ||= {});
+    let touched = false;
+    ["parent", "switch_port", "poe_entity", "down_entity", "up_entity"].forEach((k) => {
+      const w = wanted[k];
+      const cur = entry[k];
+      const owned = auto[k] !== undefined && String(cur) === String(auto[k]);
+      if (empty(cur)) {
+        delete auto[k];
+        if (w) {
+          entry[k] = w;
+          auto[k] = w;
+          touched = true;
+        }
+      } else if (owned) {
+        if (!w) {
+          delete entry[k];
+          delete auto[k];
+          touched = true;
+        } else if (String(w) !== String(cur)) {
+          entry[k] = w;
+          auto[k] = w;
+          touched = true;
+        }
+      } else {
+        delete auto[k]; // vom Nutzer geändert oder selbst eingetragen: bleibt manuell
+      }
+    });
+    if (!Object.keys(auto).length) delete entry.auto_detected;
+    return touched;
+  };
+
   Object.entries(links).forEach(([cid, l]) => {
     const parentStates = (byDevice[l.parent] || []).map((e) => states[e.entity_id]).filter(Boolean);
     const wanted = { parent: l.parent, switch_port: l.ports.join(", ") };
@@ -321,15 +358,15 @@ export function buildAutoDeviceEntries(list, byDevice, states, existing = [], en
       entry = { device: cid };
       out.push(entry);
     }
-    let touched = false;
-    Object.entries(wanted).forEach(([k, v]) => {
-      if (v && (entry[k] === undefined || entry[k] === null || entry[k] === "")) {
-        entry[k] = v;
-        touched = true;
-      }
-    });
-    if (touched) changed++;
+    if (apply(entry, wanted)) changed++;
   });
+  // Geräte, die nicht mehr erkannt werden: nur automatisch geschriebene Felder entfernen
+  for (let n = out.length - 1; n >= 0; n--) {
+    const entry = out[n];
+    if (links[entry.device] || !entry.auto_detected) continue;
+    if (apply(entry, {})) changed++;
+    if (Object.keys(entry).every((k) => k === "device")) out.splice(n, 1);
+  }
   return { devices: out, changed };
 }
 
