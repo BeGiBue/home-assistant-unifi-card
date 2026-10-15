@@ -14,6 +14,16 @@ Gateway → Switches → Access Points / Kameras, mit Geräte-Bildern sowie **Da
 - Status (online/offline), Update-Hinweis, Klick öffnet die Geräte-Details
 - **Neustart-Buttons** an den Geräten (mit Bestätigung) und **Ping/Latenz** der WAN-Ziele mit 24-h-Verlauf
 
+## Vorschau
+
+**Normalbetrieb – schmal (350 px)**
+
+<img src="screenshots/unifi-normal-350-light.png" width="350" alt="UniFi Netzwerk im Normalbetrieb mit Gateway, Switch, zwei Access Points und PC am Switch, 350 px Kartenbreite, helles Theme">
+
+**Normalbetrieb – breit (800 px)**
+
+<img src="screenshots/unifi-normal-800-light.png" width="800" alt="UniFi Netzwerk im Normalbetrieb mit Gateway, Switch, zwei Access Points und PC am Switch, 800 px Kartenbreite, helles Theme">
+
 ## Installation
 
 ### HACS (empfohlen)
