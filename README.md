@@ -322,4 +322,4 @@ Die Versionsnummer wird beim Build in die Datei eingebettet (sichtbar in der Bro
 
 ## Lizenz
 
-MIT
+AGPL-3.0-only
