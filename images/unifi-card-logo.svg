@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-labelledby="t">
+  <title id="t">UniFi Card</title>
+  <circle cx="256" cy="256" r="232" fill="#0a6070"/>
+  <rect x="160" y="322" width="192" height="44" rx="22" fill="#ffffff"/>
+  <circle cx="256" cy="294" r="14" fill="#f59e0b"/>
+  <path d="M216.4 260.4 A56 56 0 0 1 295.6 260.4" fill="none" stroke="#ffffff" stroke-width="16" stroke-linecap="round"/>
+  <path d="M185.3 229.3 A100 100 0 0 1 326.7 229.3" fill="none" stroke="#ffffff" stroke-width="16" stroke-linecap="round"/>
+  <path d="M154.2 198.2 A144 144 0 0 1 357.8 198.2" fill="none" stroke="#8fd3f4" stroke-width="16" stroke-linecap="round"/>
+</svg>
