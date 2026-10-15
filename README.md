@@ -1,4 +1,6 @@
-<img src="https://raw.githubusercontent.com/BeGiBue/home-assistant-unifi-card/main/images/unifi-card-logo-160.png" alt="UniFi Card" width="160">
+<p align="center">
+  <img src="https://raw.githubusercontent.com/BeGiBue/home-assistant-unifi-card/main/images/unifi-card-logo-160.png?v=2" alt="UniFi Card" width="160">
+</p>
 
 # UniFi Card
 
