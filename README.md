@@ -1,4 +1,4 @@
-# UniFi Network Card
+# UniFi Card
 
 Lovelace-Karte für Home Assistant, die dein UniFi-Netzwerk als Topologie darstellt:
 Gateway → Switches → Access Points / Kameras, mit Geräte-Bildern sowie **Daten- und PoE-Flüssen**.
@@ -14,17 +14,17 @@ Gateway → Switches → Access Points / Kameras, mit Geräte-Bildern sowie **Da
 
 ### HACS (empfohlen)
 
-[![Open your Home Assistant instance and open this repository in HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=BeGiBue&repository=unifi-custom-card&category=plugin)
+[![Open your Home Assistant instance and open this repository in HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=BeGiBue&repository=home-assistant-unifi-card&category=plugin)
 
 Per Klick auf den Button (öffnet die Repository-Seite in deiner Home-Assistant-Instanz) oder manuell:
 
 1. HACS → Frontend → ⋮ → *Benutzerdefinierte Repositories*
-2. `https://github.com/BeGiBue/unifi-custom-card`, Kategorie **Dashboard** hinzufügen
+2. `https://github.com/BeGiBue/home-assistant-unifi-card`, Kategorie **Dashboard** hinzufügen
 3. „UniFi Network Card“ installieren, Browser-Cache leeren
 
 ### Manuell
 
-`unifi-network-card.js` aus dem [neuesten Release](https://github.com/BeGiBue/unifi-custom-card/releases/latest)
+`unifi-network-card.js` aus dem [neuesten Release](https://github.com/BeGiBue/home-assistant-unifi-card/releases/latest)
 nach `/config/www/` kopieren und unter *Einstellungen → Dashboards → Ressourcen* als **JavaScript-Modul**
 `/local/unifi-network-card.js` hinzufügen.
 
