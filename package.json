@@ -4,7 +4,7 @@
   "description": "Home Assistant Lovelace card that shows your UniFi network topology with device images plus data and PoE flows.",
   "type": "module",
   "private": true,
-  "license": "MIT",
+  "license": "AGPL-3.0-only",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/BeGiBue/unifi-custom-card.git"
