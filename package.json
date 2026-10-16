@@ -1,6 +1,6 @@
 {
   "name": "unifi-custom-card",
-  "version": "0.1.0",
+  "version": "0.17.3",
   "description": "Home Assistant Lovelace card that shows your UniFi network topology with device images plus data and PoE flows.",
   "type": "module",
   "private": true,
