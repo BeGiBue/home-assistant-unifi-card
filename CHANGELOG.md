@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.17.6
+
+- Scroll-Springen im Dashboard behoben (iPad/Companion App): Die animierten Flusslinien liefen über `background-position` und haben den Gerätebaum in jedem Frame neu gezeichnet. Sie werden jetzt per `transform` verschoben und laufen damit im Compositing, ohne Neuzeichnen. Aussehen und Geschwindigkeit bleiben gleich.
+
 ## 0.17.5
 
 - Mehr Platz zwischen den Kacheln in der breiten Baumansicht (Abstand 10 → 15 px); kompakte Ansicht und Liste bleiben unverändert.

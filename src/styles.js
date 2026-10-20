@@ -86,7 +86,10 @@ export const styles = `
   .link .stem { position: absolute; top: 0; bottom: 0; left: calc(50% - 1px); width: 2px; background: var(--unifi-link-off); }
   .link .stem.on { background: var(--unifi-link-on); }
   .fl { position: relative; width: 4px; height: 100%; overflow: hidden; background: color-mix(in srgb, var(--c) 18%, transparent); }
-  .fl::after { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(to bottom, var(--c) 0 6px, transparent 6px 12px); background-size: 4px 12px; }
+  /* Das Muster ist 12 px höher als die Linie und wird per transform verschoben (GPU-Compositing).
+     Eine background-position-Animation zeichnet den Baum dagegen in jedem Frame neu und lässt in WebKit
+     (iPad/Companion App) das Scrollen der Seite springen. */
+  .fl::after { content: ""; position: absolute; top: -12px; right: 0; bottom: 0; left: 0; background: repeating-linear-gradient(to bottom, var(--c) 0 6px, transparent 6px 12px); background-size: 4px 12px; will-change: transform; }
   .fl.idle::after { display: none; }
   .anim .fl.dn::after { animation: unifi-dn var(--dur, 1s) linear infinite; }
   .anim .fl.upw::after { animation: unifi-up var(--dur, 1s) linear infinite; }
@@ -101,8 +104,8 @@ export const styles = `
   .chip .poe svg, .meta .poe svg { fill: var(--unifi-poe); }
   .chip .off { color: var(--secondary-text-color); }
   .chip svg, .meta svg { width: 10px; height: 10px; vertical-align: -1px; }
-  @keyframes unifi-dn { from { background-position: 0 0; } to { background-position: 0 12px; } }
-  @keyframes unifi-up { from { background-position: 0 12px; } to { background-position: 0 0; } }
+  @keyframes unifi-dn { from { transform: translateY(0); } to { transform: translateY(12px); } }
+  @keyframes unifi-up { from { transform: translateY(12px); } to { transform: translateY(0); } }
   @media (prefers-reduced-motion: reduce) { .anim .fl::after { animation: none !important; } }
 
   .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 16px; font-size: .75em; color: var(--secondary-text-color); }
