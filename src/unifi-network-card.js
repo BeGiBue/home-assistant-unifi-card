@@ -54,7 +54,41 @@ class UnifiNetworkCard extends HTMLElement {
     this._density = "normal";
   }
 
+  /**
+   * Scroll-Schutz: Während die Seite gescrollt oder berührt wird, baut die Karte ihr DOM nicht neu auf.
+   * Ein Austausch der berührten Elemente mitten in der Geste bricht das Scrollen in WebKit ab und
+   * lässt die Seite springen. Die Liveswerte werden danach nachgezogen.
+   */
+  _hold(ms) {
+    this._holdUntil = Math.max(this._holdUntil || 0, Date.now() + ms);
+  }
+
+  _bindScrollGuard() {
+    if (this._guard || typeof window === "undefined" || typeof window.addEventListener !== "function") return;
+    const opts = { capture: true, passive: true };
+    // touch- und wheel-Ereignisse sind „composed“ und erreichen das Fenster auch aus dem Shadow DOM
+    this._guard = [
+      ["touchstart", () => this._hold(1500)],
+      ["touchmove", () => this._hold(1500)],
+      ["touchend", () => this._hold(1200)], // Auslaufen der Wischbewegung (Momentum)
+      ["touchcancel", () => this._hold(1200)],
+      ["wheel", () => this._hold(300)],
+      ["scroll", () => this._hold(300)],
+    ];
+    this._guard.forEach(([ev, fn]) => window.addEventListener(ev, fn, opts));
+  }
+
+  _unbindScrollGuard() {
+    if (this._guard && typeof window.removeEventListener === "function") {
+      this._guard.forEach(([ev, fn]) => window.removeEventListener(ev, fn, { capture: true }));
+    }
+    this._guard = null;
+    clearTimeout(this._deferTimer);
+    this._deferTimer = null;
+  }
+
   connectedCallback() {
+    this._bindScrollGuard();
     if (typeof ResizeObserver === "undefined" || this._ro) return;
     // Bei Breitenänderung (Drehen des iPads, Fenstergröße, Layout) neu einpassen
     this._ro = new ResizeObserver(() => {
@@ -67,6 +101,7 @@ class UnifiNetworkCard extends HTMLElement {
   disconnectedCallback() {
     if (this._ro) this._ro.disconnect();
     this._ro = null;
+    this._unbindScrollGuard();
   }
 
   /**
@@ -152,6 +187,7 @@ class UnifiNetworkCard extends HTMLElement {
       ...config,
     };
     this._sig = "";
+    this._fitKey = null;
     this._devRef = null;
     this._histKey = null;
     this._confirm = null;
@@ -572,6 +608,18 @@ class UnifiNetworkCard extends HTMLElement {
       this._hass.locale?.language,
     ]);
     if (sig === this._sig) return;
+    // Nutzeraktionen (Dialoge) sofort zeigen; reine Liveswerte erst, wenn nicht gescrollt wird
+    const confirmKey = JSON.stringify(this._confirm ?? null);
+    if (Date.now() < (this._holdUntil || 0) && confirmKey === this._confirmKey) {
+      if (!this._deferTimer) {
+        this._deferTimer = setTimeout(() => {
+          this._deferTimer = null;
+          this._update();
+        }, Math.max(100, this._holdUntil - Date.now()));
+      }
+      return;
+    }
+    this._confirmKey = confirmKey;
     this._sig = sig;
     this._lastModel = model;
     this._render(model);
@@ -778,7 +826,17 @@ class UnifiNetworkCard extends HTMLElement {
         ${header}${body}${this._wanHtml(model?.wan, locale, t)}${this._latencyHtml(model?.latency, locale, t)}${legend}${this._confirmHtml(t)}
       </ha-card>`;
 
-    if (cfg.layout !== "grid") this._fit();
+    if (cfg.layout !== "grid") {
+      // Die Dichte-Messung schaltet testweise zwischen den Stufen um und ändert dabei die Kartenhöhe.
+      // Das nur bei geänderter Breite/Struktur tun; bei reinen Wertänderungen genügt ein Überlauf-Check.
+      const fitKey = [Math.round(this.clientWidth || 0), cfg.density, model ? model.items.map((d) => d.id).join(",") : ""].join("|");
+      const tree = this.shadowRoot.querySelector?.("ul.tree.root");
+      const overflow = !!tree && this._density !== "list" && tree.scrollWidth > tree.clientWidth + 1;
+      if (fitKey !== this._fitKey || overflow) {
+        this._fitKey = fitKey;
+        this._fit();
+      }
+    }
 
     // Bild-Fallback ohne Inline-Handler
     this.shadowRoot.querySelectorAll(".img img").forEach((img) => {

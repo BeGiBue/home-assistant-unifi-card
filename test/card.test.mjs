@@ -493,3 +493,48 @@ test("Externes Gerät ohne Status-Entität: Link-Speed-Sensor des Ports ist der 
   down.hass = mk("0");
   assert.match(down.shadowRoot.innerHTML, /tile off ext/);
 });
+
+const liveHass = (rx) => ({ ...hass, states: withIds({ ...hass.states, "sensor.sw_port_5_rx": state(rx, { friendly_name: "Switch Keller Port 5 RX", device_class: "data_rate", unit_of_measurement: "Mbit/s" }) }) });
+
+test("Scroll-Schutz: Liveswerte werden beim Scrollen zurückgestellt und danach nachgezogen", () => {
+  const card = new Card();
+  card.setConfig({ devices: [{ device: "ap", switch_port: 5 }] });
+  card.hass = liveHass("12");
+  assert.match(card.shadowRoot.innerHTML, /↑<\/b> 12 Mb\/s/);
+
+  card._hold(60000); // Nutzer scrollt gerade
+  card.hass = liveHass("20");
+  assert.match(card.shadowRoot.innerHTML, /↑<\/b> 12 Mb\/s/, "DOM bleibt während des Scrollens unangetastet");
+  assert.ok(card._deferTimer, "Nachziehen ist eingeplant");
+
+  card._holdUntil = 0; // Scrollen beendet
+  card._update();
+  assert.match(card.shadowRoot.innerHTML, /↑<\/b> 20 Mb\/s/);
+  card._unbindScrollGuard(); // Timer aufräumen
+});
+
+test("Scroll-Schutz: Dialoge nach Klick erscheinen sofort, auch beim Scrollen", () => {
+  const card = new Card();
+  card.setConfig({});
+  card.hass = hass;
+  card._hold(60000);
+  card._confirm = { type: "device", id: "sw" };
+  card._update();
+  assert.match(card.shadowRoot.innerHTML, /data-act="dev-restart"|Betriebszeit/);
+  card._unbindScrollGuard();
+});
+
+test("Dichte-Messung läuft nur bei geänderter Struktur/Breite, nicht bei reinen Wertänderungen", () => {
+  const card = new Card();
+  let fits = 0;
+  card._fit = () => fits++;
+  card.setConfig({ devices: [{ device: "ap", switch_port: 5 }] }); // rendert schon einmal ohne hass
+  fits = 0;
+  card.hass = liveHass("12");
+  assert.equal(fits, 1);
+  card.hass = liveHass("20");
+  card.hass = liveHass("30");
+  assert.equal(fits, 1, "Wertänderungen messen nicht neu");
+  card.hass = { ...hass, devices: { ...hass.devices, ap2: { id: "ap2", name: "AP 2", manufacturer: "Ubiquiti", model: "U6-Lite", via_device_id: "sw" } }, entities: { ...hass.entities, "device_tracker.ap2": ent("device_tracker.ap2", "ap2") }, states: withIds({ ...hass.states, "device_tracker.ap2": state("home") }) };
+  assert.equal(fits, 2, "neues Gerät misst neu");
+});
