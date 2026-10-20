@@ -71,7 +71,7 @@ export const styles = `
   ul.tree ul { padding-top: 14px; position: relative; }
   ul.tree ul::before { content: ""; position: absolute; top: 0; left: calc(50% - 1px); width: 2px; height: 14px; background: var(--unifi-link-off); }
   ul.tree ul.on::before { background: var(--unifi-link-on); }
-  ul.tree li { position: relative; padding: 2px 5px 0; display: flex; flex-direction: column; align-items: center; }
+  ul.tree li { position: relative; padding: 2px 7.5px 0; display: flex; flex-direction: column; align-items: center; }
   ul.tree.root > li { padding-top: 0; }
   ul.tree li::before, ul.tree li::after { content: ""; position: absolute; top: 0; height: 2px; width: 50%; background: var(--unifi-link-off); }
   ul.tree li.on::before, ul.tree li.on::after { background: var(--unifi-link-on); }

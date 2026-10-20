@@ -101,7 +101,7 @@ class UnifiNetworkCard extends HTMLElement {
           perLevel[depth] = (perLevel[depth] || 0) + 1;
         });
         const widest = Math.max(1, ...Object.values(perLevel));
-        const tileW = { normal: 160, compact: 96 };
+        const tileW = { normal: 165, compact: 96 };
         const inner = avail - 24; // Kartenrand
         let chosen = "list";
         for (const l of levels) {
