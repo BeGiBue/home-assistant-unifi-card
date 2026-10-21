@@ -380,3 +380,56 @@ test("suggestExternalDevices schlägt Nicht-UniFi-Geräte an belegten Ports vor"
   const r2 = suggestExternalDevices(list, byDevice, states, {}, [{ name: "Drucker" }, { name: "x", parent: "sw", switch_port: "NAS" }]);
   assert.deepEqual(r2, []);
 });
+
+test("findPortEntity: „PoE Standard“ wird nicht mit „PoE Power“ verwechselt (UniFi Network+ 0.3)", () => {
+  const e = (id, name, dc, state) => ({ entity_id: id, state, attributes: { friendly_name: name, ...(dc ? { device_class: dc } : {}) } });
+  const std = e("sensor.k_port_5_poe_standard", "Keller Port 5 PoE Standard", null, "802.3at");
+  const pwr = e("sensor.k_port_5_poe_power", "Keller Port 5 PoE Power", "power", "8.9");
+  // Reihenfolge darf keine Rolle spielen
+  assert.equal(findPortEntity([std, pwr], 5, "poe").entity_id, "sensor.k_port_5_poe_power");
+  assert.equal(findPortEntity([pwr, std], 5, "poe").entity_id, "sensor.k_port_5_poe_power");
+  // mit translation_key (auch bei fremdsprachigen Namen)
+  const de = e("sensor.k_port_5_x", "Keller Port 5 PoE-Norm", null, "802.3at");
+  const ents = { "sensor.k_port_5_x": { translation_key: "port_poe_standard" }, "sensor.k_port_5_poe_power": { translation_key: "port_poe_power" } };
+  assert.equal(findPortEntity([de, pwr], 5, "poe", { entities: ents }).entity_id, "sensor.k_port_5_poe_power");
+  // ohne Leistungssensor: lieber nichts als den Text-Sensor
+  assert.equal(findPortEntity([std], 5, "poe"), undefined);
+  assert.equal(findPortEntity([std, de], 5, "poe", { entities: ents }), undefined);
+});
+
+test("detectLinks nutzt den Uplink-Sensor (UniFi Network+), Link-Speed hat Vorrang", () => {
+  const st = (id, name, state, attrs = {}) => [id, { entity_id: id, state, attributes: { friendly_name: name, ...attrs } }];
+  const devs = [
+    { id: "gw", name: "Router", haName: "Router", type: "gateway", mac: "", entityIds: [] },
+    { id: "sw", name: "Keller", haName: "Keller", type: "switch", mac: "aa:01", entityIds: ["sensor.sw_uplink"] },
+    { id: "sw2", name: "Büro Switch", haName: "Büro", type: "switch", mac: "aa:02", entityIds: ["sensor.sw2_uplink", "sensor.sw2_p3_link"] },
+    { id: "ap", name: "AP Werkstatt", haName: "AP Werkstatt", type: "ap", mac: "aa:03", entityIds: ["sensor.ap_uplink"] },
+    { id: "ap2", name: "AP Büro", haName: "AP Büro", type: "ap", mac: "aa:04", entityIds: ["sensor.ap2_uplink"] },
+    { id: "ap3", name: "AP Garten", haName: "AP Garten", type: "ap", mac: "aa:05", entityIds: ["sensor.ap3_uplink"] },
+    { id: "ap4", name: "AP Dach", haName: "AP Dach", type: "ap", mac: "aa:06", entityIds: ["sensor.ap4_uplink"] },
+  ];
+  const states = Object.fromEntries([
+    st("sensor.sw_uplink", "Keller Uplink", "Router", { port: 8 }),
+    st("sensor.sw2_uplink", "Büro Switch Uplink", "Keller", { port: 12 }), // Switch an Switch
+    st("sensor.ap_uplink", "AP Werkstatt Uplink", "keller", { port: 5 }), // Groß-/Kleinschreibung egal
+    st("sensor.ap2_uplink", "AP Büro Uplink", "Keller", { port: 9 }), // widerspricht Link Speed -> Link Speed gewinnt
+    st("sensor.sw2_p3_link", "Büro Port 3 Link Speed", "1000", { connected_mac: "aa:04" }),
+    st("sensor.ap3_uplink", "AP Garten Uplink", "Büro", {}), // Name über haName, ohne Port
+    st("sensor.ap4_uplink", "AP Dach Uplink", "unavailable", { port: 2 }),
+  ]);
+  const out = detectLinks(devs, states);
+  assert.deepEqual(out.sw, { parent: "gw", ports: [8] });
+  assert.deepEqual(out.sw2, { parent: "sw", ports: [12] });
+  assert.deepEqual(out.ap, { parent: "sw", ports: [5] });
+  assert.deepEqual(out.ap2, { parent: "sw2", ports: [3] }); // Link Speed am Büro-Switch hat Vorrang
+  assert.deepEqual(out.ap3, { parent: "sw2", ports: [] });
+  assert.equal(out.ap4, undefined); // unavailable
+  assert.equal(out.gw, undefined);
+  // mit translation_key, auch wenn der Name nicht auf „Uplink“ endet
+  const out2 = detectLinks(
+    [devs[0], devs[1], { ...devs[3], entityIds: ["sensor.x"] }],
+    { ...states, ...Object.fromEntries([st("sensor.x", "AP Werkstatt Anbindung", "Keller", { port: 7 })]) },
+    { "sensor.x": { translation_key: "device_uplink" } }
+  );
+  assert.deepEqual(out2.ap, { parent: "sw", ports: [7] });
+});

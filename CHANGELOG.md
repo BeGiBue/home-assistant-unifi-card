@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.17.7
+
+- Fix: Der neue Sensor „Port N PoE Standard“ von UniFi Network+ (Text wie 802.3at, standardmäßig deaktiviert) wurde bei nummerischen Ports teils statt „PoE Power“ als PoE-Wert gewählt. Die Art der Entität wird jetzt über den `translation_key` bestimmt, der Standard-Sensor wird nie für die Leistung verwendet.
+- Neu: Der Sensor „Uplink“ von UniFi Network+ (ab 0.3, je AP/Switch) ordnet übergeordnetes Gerät und Port automatisch zu, auch wenn die Link-Speed-Sensoren der Ports deaktiviert sind. Kaskadierte Switches (Switch an Switch) werden damit erkannt. Link-Speed-Sensoren haben weiterhin Vorrang, manuelle Angaben ebenso.
+- Geräte werden bei der Zuordnung zusätzlich über ihren HA-Namen gefunden, falls dieser vom Controller-Namen abweicht.
+
 ## 0.17.6
 
 - Scroll-Springen im Dashboard behoben (iPad/Companion App): Die animierten Flusslinien liefen über `background-position` und haben den Gerätebaum in jedem Frame neu gezeichnet. Sie werden jetzt per `transform` verschoben und laufen damit im Compositing, ohne Neuzeichnen. Aussehen und Geschwindigkeit bleiben gleich.

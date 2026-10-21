@@ -538,3 +538,29 @@ test("Dichte-Messung läuft nur bei geänderter Struktur/Breite, nicht bei reine
   card.hass = { ...hass, devices: { ...hass.devices, ap2: { id: "ap2", name: "AP 2", manufacturer: "Ubiquiti", model: "U6-Lite", via_device_id: "sw" } }, entities: { ...hass.entities, "device_tracker.ap2": ent("device_tracker.ap2", "ap2") }, states: withIds({ ...hass.states, "device_tracker.ap2": state("home") }) };
   assert.equal(fits, 2, "neues Gerät misst neu");
 });
+
+test("Uplink-Sensor (UniFi Network+) ordnet Parent und Port zu; PoE Standard stört nicht", () => {
+  const h = {
+    ...hass,
+    devices: { ...hass.devices, ap: { ...hass.devices.ap, via_device_id: undefined } },
+    entities: {
+      ...hass.entities,
+      "sensor.ap_uplink": { ...ent("sensor.ap_uplink", "ap", "unifi_network_plus"), translation_key: "device_uplink" },
+      "sensor.sw_port_5_poe_standard": { ...ent("sensor.sw_port_5_poe_standard", "sw", "unifi_network_plus"), translation_key: "port_poe_standard" },
+    },
+    states: withIds({
+      ...hass.states,
+      "sensor.ap_uplink": state("Switch Keller", { friendly_name: "AP <Büro> Uplink", port: 5 }),
+      "sensor.sw_port_5_poe_standard": state("802.3at", { friendly_name: "Switch Keller Port 5 PoE Standard" }),
+    }),
+  };
+  // Der Standard-Sensor steht absichtlich vor dem Leistungssensor in der Reihenfolge
+  h.states = Object.fromEntries([["sensor.sw_port_5_poe_standard", h.states["sensor.sw_port_5_poe_standard"]], ...Object.entries(h.states)]);
+  const card = new Card();
+  card.setConfig({});
+  card.hass = h;
+  const ap = card._lastModel.items.find((d) => d.id === "ap");
+  assert.equal(ap.parent, "sw");
+  assert.deepEqual(card._links.ap, { parent: "sw", ports: [5] });
+  assert.match(card.shadowRoot.innerHTML, /8,9 W/);
+});

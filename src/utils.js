@@ -100,8 +100,14 @@ export function findPortEntity(states, port, kind, opts = {}) {
   }[kind];
   return states.find((s) => {
     if (!String(s.entity_id).startsWith(`${domain}.`)) return false;
+    // Die Art der Entität steht im translation_key (sprachunabhängig): "PoE Standard" ist keine "PoE Power"
+    const tk = PORT_TK[opts.entities?.[s.entity_id]?.translation_key];
+    if (tk && tk !== kind) return false;
+    if (opts.entities?.[s.entity_id]?.translation_key === "port_poe_standard") return false;
     const name = `${s.attributes?.friendly_name || ""} ${s.entity_id}`;
     if (!portRe.test(name) || !kindRe.test(name)) return false;
+    // Ohne translation_key: Text-Sensor "PoE Standard" (z. B. 802.3at) nicht für die Leistung verwenden
+    if (kind === "poe" && /poe[\s_-]*(standard|norm)/i.test(name)) return false;
     const dc = s.attributes?.device_class;
     return !sensorKind || !dc || dc === wantClass;
   });
@@ -267,6 +273,10 @@ export function detectLinks(devices, states, entities = {}) {
     if (d.mac) byMac[norm(d.mac)] = d;
     if (d.name) byName[norm(d.name)] = d;
   });
+  // Der Name im Controller kann vom (umbenannten) HA-Namen abweichen: zusätzlich über haName finden
+  devices.forEach((d) => {
+    if (d.haName && !byName[norm(d.haName)]) byName[norm(d.haName)] = d;
+  });
   const rank = { gateway: 0, switch: 1 };
   const rankOf = (d) => rank[d.type] ?? 2;
   const found = {};
@@ -300,6 +310,28 @@ export function detectLinks(devices, states, entities = {}) {
       typeof x === "number" && typeof y === "number" ? x - y : typeof x === "number" ? -1 : typeof y === "number" ? 1 : String(x).localeCompare(String(y))
     );
     out[cid] = { parent: cands[0], ports };
+  });
+
+  // Zweite Quelle: der Sensor „Uplink“ von UniFi Network+ (translation_key device_uplink).
+  // Zustand = Name des übergeordneten Geräts, Attribut `port` = Port an diesem Gerät (uplink_remote_port).
+  // Die Link-Speed-Sensoren haben Vorrang (MAC-genau, Link Aggregation); der Uplink-Sensor füllt Lücken,
+  // z. B. wenn die Port-Sensoren deaktiviert sind (sie sind standardmäßig aus). Er ist gerichtet, daher
+  // sind auch kaskadierte Switches (Switch an Switch) eindeutig.
+  devices.forEach((child) => {
+    if (out[child.id] || child.type === "gateway") return;
+    for (const id of child.entityIds || []) {
+      const s = states?.[id];
+      if (!s || !String(id).startsWith("sensor.")) continue;
+      const tk = entities?.[id]?.translation_key;
+      const named = !tk && /(^|\s)uplink$/i.test(String(s.attributes?.friendly_name || "").trim());
+      if (tk !== "device_uplink" && !named) continue;
+      if (["unavailable", "unknown", "", "none"].includes(String(s.state).toLowerCase())) continue;
+      const parent = byName[norm(s.state)];
+      if (!parent || parent.id === child.id || !(parent.type in rank)) continue;
+      const n = Number(s.attributes?.port);
+      out[child.id] = { parent: parent.id, ports: Number.isInteger(n) && n > 0 ? [n] : [] };
+      break;
+    }
   });
   return out;
 }

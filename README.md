@@ -158,7 +158,13 @@ Port-Namen eintragen, mehrere durch Komma oder Semikolon getrennt (`NAS 1; NAS 2
 (`connected_mac` / `connected_device`). Die Karte ordnet damit APs, Kameras und Switches automatisch dem richtigen
 Port (und bei mehreren Ports zum selben Gerät einer Link Aggregation) sowie dem richtigen Uplink zu. Voraussetzung:
 die Link-Speed-Sensoren der Ports sind aktiviert und heißen „… Port N …“. Manuelle Angaben (`switch_port`, `parent`) haben
-immer Vorrang. Gleichrangige Geräte (zwei Switches) ordnest du weiterhin per `parent` zu.
+immer Vorrang.
+
+Seit Network+ 0.3 gibt es zusätzlich den Sensor **„Uplink“** je Access Point und Switch (standardmäßig aktiviert): Er nennt
+das übergeordnete Gerät und den Port dort. Die Karte nutzt ihn als zweite Quelle, wenn die Link-Speed-Sensoren fehlen oder
+deaktiviert sind. Da er eine Richtung hat, werden damit auch kaskadierte Switches (Switch an Switch) automatisch erkannt.
+Sind beide Quellen vorhanden, gewinnen die Link-Speed-Sensoren (MAC-genau, Link Aggregation). Der Sensor „PoE Standard“
+(Text, z. B. 802.3at) wird nicht mit „PoE Power“ verwechselt.
 
 Hinweis zur Richtung: „Download“ eines Ports ist der Empfang am Switch, also der **Upload des angeschlossenen Geräts**.
 Die Karte berücksichtigt das. Zeigt sie bei dir die Pfeile vertauscht, schalte `swap_port_direction: true` ein.
