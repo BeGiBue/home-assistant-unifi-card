@@ -433,3 +433,16 @@ test("detectLinks nutzt den Uplink-Sensor (UniFi Network+), Link-Speed hat Vorra
   );
   assert.deepEqual(out2.ap, { parent: "sw", ports: [7] });
 });
+
+test("release-notes: liest genau den Abschnitt einer Version aus dem Changelog", async () => {
+  const { releaseNotes } = await import("../scripts/release-notes.mjs");
+  const cl = "# Changelog\n\nIntro\n\n## 1.2.10 – 2026-01-02\n\n- zehn\n\n## 1.2.1 – 2026-01-01\n\n**Behoben**\n- eins\n\n## 1.2.0 – 2025-12-31\n\n- null\n";
+  assert.equal(releaseNotes(cl, "1.2.1"), "**Behoben**\n- eins"); // nicht 1.2.10
+  assert.equal(releaseNotes(cl, "v1.2.10"), "- zehn");
+  assert.equal(releaseNotes(cl, "1.2.0"), "- null");
+  assert.equal(releaseNotes(cl, "9.9.9"), null);
+  // Der echte Changelog hat einen Abschnitt für die aktuelle Version
+  const { readFileSync } = await import("node:fs");
+  const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+  assert.ok(releaseNotes(readFileSync(new URL("../CHANGELOG.md", import.meta.url), "utf8"), pkg.version), "CHANGELOG.md braucht einen Abschnitt für die Version aus package.json");
+});

@@ -4,202 +4,136 @@
 
 # UniFi Card
 
-Lovelace-Karte für Home Assistant, die dein UniFi-Netzwerk als Topologie darstellt:
-Gateway → Switches → Access Points / Kameras, mit Geräte-Bildern sowie **Daten- und PoE-Flüssen**.
+Lovelace-Karte für Home Assistant, die dein UniFi-Netzwerk als Topologie zeigt: Gateway → Switches → Access Points,
+Kameras und weitere Geräte, mit PoE-Leistung und Datenraten an jeder Verbindung.
 
-- Liest die Geräte direkt aus der **UniFi-Integration** (kein extra Backend nötig)
-- **Theme-sensitiv**: alle Farben stammen aus dem aktiven Home-Assistant-Theme (Hell/Dunkel inklusive)
-- **Visueller Editor** mit nativen HA-Selektoren (Geräte-, Entitäts-, Farb-Auswahl), YAML bleibt möglich
-- Animierte Linien: PoE-Leistung, Download, Upload je Verbindung, PoE-Budget je Switch
-- Status (online/offline), Update-Hinweis, Klick öffnet die Geräte-Details
-- **Neustart-Buttons** an den Geräten (mit Bestätigung) und **Ping/Latenz** der WAN-Ziele mit 24-h-Verlauf
+- Liest die Geräte direkt aus der [UniFi-Integration](https://www.home-assistant.io/integrations/unifi/), kein
+  zusätzliches Backend
+- Optional mit [UniFi Network+](https://github.com/42bios/unifi-network-plus): Portbelegung, Hierarchie und
+  WAN-Daten werden automatisch erkannt
+- Animierte Linien für PoE, Download und Upload, PoE-Budget je Switch, Link Aggregation
+- Klick auf ein Gerät: Status, IP, Betriebszeit, Neustart. Klick auf eine Verbindung: PoE aus/ein, PoE-Neustart
+- Internet-Durchsatz und Ping mit Verlauf
+- Passt sich an: Baum, kompakte Kacheln oder Liste, je nach Breite
+- Farben aus dem aktiven Theme (hell und dunkel), visueller Editor, YAML möglich
 
 ## Vorschau
 
-**Normalbetrieb – schmal (350 px)**
+**Breit (800 px)**
 
-<img src="https://raw.githubusercontent.com/BeGiBue/home-assistant-unifi-card/main/screenshots/unifi-normal-350-light.png" width="350" alt="UniFi Netzwerk im Normalbetrieb mit Gateway, Switch, zwei Access Points und PC am Switch, 350 px Kartenbreite, helles Theme">
+<img src="https://raw.githubusercontent.com/BeGiBue/home-assistant-unifi-card/main/screenshots/unifi-normal-800-light.png" width="800" alt="UniFi-Topologie mit Gateway, Switch, zwei Access Points und PC am Switch, 800 px breit, helles Theme">
 
-**Normalbetrieb – breit (800 px)**
+**Schmal (350 px)**
 
-<img src="https://raw.githubusercontent.com/BeGiBue/home-assistant-unifi-card/main/screenshots/unifi-normal-800-light.png" width="800" alt="UniFi Netzwerk im Normalbetrieb mit Gateway, Switch, zwei Access Points und PC am Switch, 800 px Kartenbreite, helles Theme">
+<img src="https://raw.githubusercontent.com/BeGiBue/home-assistant-unifi-card/main/screenshots/unifi-normal-350-light.png" width="350" alt="Dieselbe Topologie in 350 px Breite, helles Theme">
 
 ## Installation
 
 ### HACS (empfohlen)
 
-[![Open your Home Assistant instance and open this repository in HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=BeGiBue&repository=home-assistant-unifi-card&category=plugin)
+[![In HACS öffnen](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=BeGiBue&repository=home-assistant-unifi-card&category=plugin)
 
-Per Klick auf den Button (öffnet die Repository-Seite in deiner Home-Assistant-Instanz) oder manuell:
+Oder von Hand: HACS → ⋮ → *Benutzerdefinierte Repositories* → `https://github.com/BeGiBue/home-assistant-unifi-card`
+mit Typ **Dashboard** hinzufügen, „UniFi Card“ herunterladen, danach den Browser-Cache leeren bzw. in der Companion App
+den Frontend-Cache zurücksetzen.
 
-1. HACS → Frontend → ⋮ → *Benutzerdefinierte Repositories*
-2. `https://github.com/BeGiBue/home-assistant-unifi-card`, Kategorie **Dashboard** hinzufügen
-3. „UniFi Network Card“ installieren, Browser-Cache leeren
+HACS prüft eigene Repositories nur etwa alle 48 Stunden auf neue Versionen. Schneller geht es über ⋮ → *Informationen
+aktualisieren* am Repository.
 
 ### Manuell
 
 `unifi-network-card.js` aus dem [neuesten Release](https://github.com/BeGiBue/home-assistant-unifi-card/releases/latest)
 nach `/config/www/` kopieren und unter *Einstellungen → Dashboards → Ressourcen* als **JavaScript-Modul**
-`/local/unifi-network-card.js` hinzufügen.
+`/local/unifi-network-card.js` eintragen.
 
-## Schmale Displays (7"-Display, iPad hochkant)
+## Schnellstart
 
-Die Karte passt sich der verfügbaren Breite an: Passt der Baum nicht mehr nebeneinander, wechselt sie erst auf **kompakte Kacheln**,
-dann auf eine **Liste** (Geräte untereinander, Kind-Geräte eingerückt, Durchsatz und PoE unter der Kachel). Beim Drehen des iPads oder
-Ändern der Fenstergröße wird neu gemessen. Mit `density` lässt sich das festlegen:
-
-```yaml
-density: auto      # auto (Standard) | normal | compact | list
-```
-
-## Verwendung
-
-Die Karte lässt sich über den Karten-Dialog („UniFi Network Card“) mit dem visuellen Editor konfigurieren.
-Per YAML:
+Karte hinzufügen und „UniFi Network Card“ wählen. Ohne weitere Einstellungen zeigt sie alle UniFi-Geräte an.
+Kleinste Konfiguration per YAML:
 
 ```yaml
 type: custom:unifi-network-card
-title: UniFi Netzwerk
-layout: tree            # tree | grid
-show_offline: true
-show_flows: true
-animate_flows: true
-show_summary: true
-show_legend: true
-auto_parent: true       # Hierarchie automatisch ableiten
-show_clients: true      # Anzahl verbundener Geräte an Switches/APs
-config_entry: 01H…      # optional: nur einen UniFi-Controller anzeigen
-image_base: /local/unifi/   # optional, Datei: {Modell}.png
-poe_color: orange       # optional, sonst --warning-color
-down_color: blue        # optional, sonst --info-color
-up_color: green         # optional, sonst --success-color
-devices:
-  - device: 3f2a…       # Geräte-ID (im Editor per Auswahl)
-    name: Switch Keller
-    poe_budget: 400     # nur Switches: PoE-Budget in W
-  - device: 9c1b…
-    name: AP Wohnzimmer
-    switch_port: 5      # Port am übergeordneten Switch
-  - device: 77de…
-    switch_port: 9
-    poe_entity: sensor.switch_keller_port_9_poe_power   # optional, überschreibt die Automatik
-    down_entity: sensor.switch_keller_port_9_tx
-    up_entity: sensor.switch_keller_port_9_rx
 ```
 
-### Optionen
+Damit an den Verbindungen Werte stehen, braucht die Karte die **Port-Sensoren** des Switches (PoE-Leistung, Download/Upload
+bzw. RX/TX). Sie sind in beiden Integrationen **standardmäßig deaktiviert** und müssen am Switch unter *Entitäten*
+aktiviert werden.
 
-| Option | Standard | Beschreibung |
-| --- | --- | --- |
-| `title` | `UniFi Netzwerk` | Kartentitel |
-| `config_entry` | – | Nur Geräte dieses UniFi-Konfigurationseintrags |
-| `layout` | `tree` | `tree` (Topologie) oder `grid` (gruppiert nach Typ) |
-| `show_offline` | `true` | Offline-Geräte anzeigen |
-| `show_flows` | `true` | Daten-/PoE-Flüsse anzeigen |
-| `animate_flows` | `true` | Linien animieren (respektiert „Bewegung reduzieren“) |
-| `show_summary` | `true` | Zusammenfassung im Kopf (Online, PoE, Down/Up) |
-| `show_legend` | `true` | Legende unter der Topologie |
-| `show_clients` | `true` | Anzahl verbundener Geräte an Access Points und Switches anzeigen |
-| `show_restart` | `true` | Neustart-Button an Geräten mit Restart-Entität anzeigen |
-| `show_latency` | `true` | Ping-/Latenz-Sensoren anzeigen |
-| `latency_entities[]` | automatisch | Eigene Latenz-Sensoren (`entity`, `name`, `icon`) |
-| `managed` | `false` | Nur Geräte, Ping- und Internet-Sensoren aus den Einträgen anzeigen (vom Erkennungs-Button gesetzt) |
-| `swap_port_direction` | `false` | Download/Upload der Port-Sensoren vertauschen |
-| `latency_hours` | `24` | Zeitraum des Verlaufs in Stunden |
-| `external_devices[]` | – | Geräte außerhalb von UniFi manuell anzeigen (siehe unten) |
-| `auto_parent` | `true` | Hierarchie automatisch ableiten, wenn Home Assistant sie nicht liefert (siehe unten) |
-| `image_base` | – | Ordner mit Geräte-Bildern, Dateiname `{Modell}.png` (Leerzeichen → `-`) |
-| `poe_color` / `down_color` / `up_color` | Theme | Farbe (HA-Farbname, Hex oder `rgb()`) |
-| `devices[]` | – | Einstellungen pro Gerät, siehe unten |
+## Wie die Karte dein Netzwerk erkennt
 
-`devices[]`-Felder: `device` (Pflicht), `name`, `image`, `parent`, `switch_port`, `poe_entity`, `down_entity`,
-`up_entity`, `poe_budget`, `clients_entity`, `restart_entity`.
+### Hierarchie (wer hängt woran)
 
-## Verbundene Geräte
+Für jedes Gerät nimmt die Karte die erste Angabe, die vorhanden ist:
 
-An Access Points und Switches zeigt die Karte die Anzahl verbundener Geräte (Personen-Symbol), wenn die
-UniFi-Integration dafür einen Sensor liefert (Name enthält „Clients“, z. B. `sensor.ap_buero_clients`).
-Fehlt er oder soll ein anderer Sensor gelten, wählst du ihn pro Gerät unter `devices[].clients_entity`
-(auch ein Template-Sensor ist möglich, z. B. für zusammengefasste Verbindungen). Abschalten mit
-`show_clients: false`.
+1. `devices[].parent` aus der Karte (im Editor „Übergeordnetes Gerät“)
+2. die Beziehung aus der Geräte-Registry von Home Assistant
+3. mit UniFi Network+: die erkannte Portbelegung (siehe unten)
+4. bei `auto_parent: true` eine Faustregel: Switches hängen am Gateway, alle anderen Geräte am einzigen Switch. Gibt es
+   mehrere Switches, hängen sie am Gateway, bis du per `parent` den richtigen Switch zuweist.
 
-## UniFi Network+ (Community-Integration)
+### Port (für PoE- und Datenwerte)
 
-Die Karte liest Geräte aus der Core-Integration **und** aus [UniFi Network+](https://github.com/42bios/unifi-network-plus).
-Laufen beide parallel, werden gleichnamige Geräte zusammengeführt (Status und Update-Hinweis aus der Core-Integration,
-zusätzliche Sensoren aus Network+). Der Sammel-Eintrag „Network Controller“ erscheint nicht als Gerät.
+Die Werte einer Verbindung kommen von den Port-Sensoren des **übergeordneten** Geräts. Welcher Port gemeint ist, steht in
+`devices[].switch_port` oder wird mit UniFi Network+ automatisch erkannt. Die Sensoren findet die Karte am Namen
+(„Port 5 PoE Power“, „… Download“, „… RX“). Passen die Namen nicht, gibst du `poe_entity`, `down_entity` und `up_entity`
+am Gerät direkt an.
 
-Network+ liefert zusätzlich: **WAN Download/Upload** (Kacheln „Internet“), **WAN Latency**, Neustart-Buttons (standardmäßig
-deaktiviert) und je Port **Download/Upload/PoE Power** (standardmäßig deaktiviert; bitte aktivieren). Die Port-Sensoren
-heißen „{Portname} Download/Upload“. Erkannt wird der Port über den Namen „Port N“. Hast du Ports in UniFi umbenannt,
-gib die Sensoren am Gerät direkt an (`poe_entity`, `down_entity`, `up_entity`).
+Ein Port-Sensor misst aus Sicht des Switches: Empfang am Port ist der **Upload des angeschlossenen Geräts**. Die Karte
+rechnet das um. Sind die Pfeile bei dir trotzdem vertauscht, setze `swap_port_direction: true`.
 
-**Einträge statt unsichtbarer Automatik:** Der Button „Automatische Erkennung neu starten“ (im Editor unter der Geräteliste)
-legt für **jedes UniFi-Gerät** einen Eintrag in `devices` an (Name, bei erkannter Zuordnung auch übergeordnetes Gerät, Port und
-bei einem Port die Sensoren für PoE, Download und Upload), für jeden **Ping-Sensor** einen Eintrag in `latency_entities` und trägt
-die **Internet-Sensoren** (`wan_down_entity`, `wan_up_entity`) ein. Dabei wird `managed: true` gesetzt: Die Karte zeigt dann nur
-noch, was in der Liste steht. **Einen Eintrag zu löschen blendet das Gerät oder den Ping-Sensor aus.** Nur ein erneuter Klick auf
-den Button ergänzt gelöschte Einträge wieder. Bei einer neuen, leeren Karte läuft die Erkennung beim ersten Öffnen des Editors
-einmal automatisch. Mit `managed: false` zeigt die Karte wieder alles automatisch an.
+### Mit UniFi Network+
 
-Was die Automatik geschrieben hat, merkt sich der Eintrag unter `auto_detected`. Ein erneuter Klick aktualisiert genau diese
-Felder (z. B. nach dem Umstecken eines Kabels). Selbst eingetragene oder nachträglich geänderte Werte werden nie
-überschrieben. Ist ein Gerät nicht mehr erkennbar, verschwinden nur die automatisch geschriebenen Felder.
+Die Karte liest Geräte aus der Core-Integration und aus Network+, auch wenn beide parallel laufen. Gleichnamige Geräte
+werden dann zusammengeführt. Network+ bringt diese Erkennung mit:
 
-**PoE:** Wird ein Gerät nicht über PoE versorgt (Leistung 0 W oder kein PoE-Sensor), entfällt die PoE-Anzeige und die
-orangefarbene Linie an der Verbindung.
+- **Portbelegung:** Die Sensoren „Port N Link Speed“ nennen das Gerät am anderen Kabelende. Damit ordnet die Karte
+  Access Points, Kameras und Switches dem richtigen Port zu, mehrere Ports zum selben Gerät als Link Aggregation.
+- **Uplink:** Der Sensor „Uplink“ je Access Point und Switch (ab Network+ 0.3, standardmäßig aktiv) nennt das
+  übergeordnete Gerät und den Port. Er reicht auch ohne Link-Speed-Sensoren und erkennt Switches, die an einem anderen
+  Switch hängen. Sind beide Quellen da, gewinnen die Link-Speed-Sensoren.
+- **Benannte Ports:** Hast du Ports in UniFi umbenannt („NAS“), funktioniert das ebenfalls. In `switch_port` kannst du
+  dann den Namen eintragen.
+- **WAN-Durchsatz und WAN-Latenz** für die Internet- und Ping-Kacheln.
 
-**Benannte Ports und deutsche Namen:** Network+ benennt die Sensoren nach dem Port-Namen aus UniFi
-(„Keller NAS Download“, „Keller Port 5 PoE-Leistung“). Die Karte erkennt sowohl „Port N“ als auch eigene Namen und
-die deutschen Bezeichnungen („Verbindungsgeschwindigkeit“, „PoE-Leistung“). Bei `switch_port` kannst du deshalb auch den
-Port-Namen eintragen, mehrere durch Komma oder Semikolon getrennt (`NAS 1; NAS 2`).
+Manuelle Angaben haben immer Vorrang vor der Erkennung.
 
-**Automatische Port-Zuordnung:** Die Sensoren „Port N Link Speed“ von Network+ nennen das angeschlossene Gerät
-(`connected_mac` / `connected_device`). Die Karte ordnet damit APs, Kameras und Switches automatisch dem richtigen
-Port (und bei mehreren Ports zum selben Gerät einer Link Aggregation) sowie dem richtigen Uplink zu. Voraussetzung:
-die Link-Speed-Sensoren der Ports sind aktiviert und heißen „… Port N …“. Manuelle Angaben (`switch_port`, `parent`) haben
-immer Vorrang.
+### Automatische Erkennung im Editor
 
-Seit Network+ 0.3 gibt es zusätzlich den Sensor **„Uplink“** je Access Point und Switch (standardmäßig aktiviert): Er nennt
-das übergeordnete Gerät und den Port dort. Die Karte nutzt ihn als zweite Quelle, wenn die Link-Speed-Sensoren fehlen oder
-deaktiviert sind. Da er eine Richtung hat, werden damit auch kaskadierte Switches (Switch an Switch) automatisch erkannt.
-Sind beide Quellen vorhanden, gewinnen die Link-Speed-Sensoren (MAC-genau, Link Aggregation). Der Sensor „PoE Standard“
-(Text, z. B. 802.3at) wird nicht mit „PoE Power“ verwechselt.
+Der Button **„Automatische Erkennung neu starten“** (unter der Geräteliste) schreibt alles Erkannte als Einträge in die
+Konfiguration: je UniFi-Gerät einen Eintrag in `devices`, die Ping-Sensoren in `latency_entities` und die
+Internet-Sensoren. Dabei wird `managed: true` gesetzt. Ab dann zeigt die Karte nur, was in der Liste steht, und **ein
+gelöschter Eintrag blendet das Gerät aus**.
 
-Hinweis zur Richtung: „Download“ eines Ports ist der Empfang am Switch, also der **Upload des angeschlossenen Geräts**.
-Die Karte berücksichtigt das. Zeigt sie bei dir die Pfeile vertauscht, schalte `swap_port_direction: true` ein.
+Ein erneuter Klick aktualisiert nur die Felder, die die Erkennung selbst geschrieben hat (gemerkt unter `auto_detected`),
+etwa nach dem Umstecken eines Kabels. Von dir eingetragene Werte bleiben unangetastet. Bei einer neuen Karte läuft die
+Erkennung beim ersten Öffnen des Editors einmal von selbst. Mit `managed: false` zeigt die Karte wieder alles an.
 
-## Geräte-Fenster und PoE-Steuerung
+## Funktionen
 
-- **Klick auf ein Gerät** öffnet ein kleines Fenster mit Status, IP-Adresse, Betriebszeit und Neustart (mit Rückfrage), ohne
-  Sensor-Details. Die IP stammt aus `devices[].ip`, einem Tracker-Attribut oder (UniFi Network+) vom Switch-Port des Uplinks.
-  Die Betriebszeit kommt aus einem Uptime-Sensor des Geräts und entfällt, wenn es keinen gibt.
-- **Klick auf eine Verbindung** bietet für den Port **PoE ausschalten/einschalten** (Schalter „Port PoE“) und **PoE neu starten**
-  (Button „Power Cycle“) an. Beides sind Entitäten des übergeordneten Switches, in Home Assistant standardmäßig deaktiviert und
-  nur mit Admin-Rechten nutzbar. Mit `poe_switch_entity` und `poe_cycle_entity` gibst du sie am Gerät direkt an.
+### Geräte-Fenster und PoE-Steuerung
 
-## Neustart
+- **Klick auf ein Gerät** öffnet ein Fenster mit Status, IP-Adresse, Betriebszeit und Neustart (mit Rückfrage). Die IP
+  kommt aus `devices[].ip`, einem Tracker-Attribut oder dem Uplink-Port (Network+). Die Betriebszeit entfällt, wenn das
+  Gerät keinen Uptime-Sensor hat.
+- **Klick auf eine Verbindung** bietet **PoE aus/ein** und **PoE-Neustart** (Power Cycle) für den Port an. Die Entitäten
+  gehören zum Switch, sind standardmäßig deaktiviert und brauchen Admin-Rechte im Controller. Abweichende Entitäten gibst
+  du mit `poe_switch_entity` und `poe_cycle_entity` an.
+- **Neustart-Symbol** oben links an der Kachel, wenn das Gerät einen Neustart-Button hat (muss aktiviert sein). Anderen
+  Button wählen mit `restart_entity`, alle ausblenden mit `show_restart: false`.
 
-Hat ein Gerät in der UniFi-Integration einen Neustart-Button (z. B. `button.keller_restart`), erscheint oben links an
-der Kachel ein kleines Neustart-Symbol. Ein Klick fragt „… wirklich neu starten?“ – erst nach Bestätigung wird
-`button.press` aufgerufen. Die Erkennung ist automatisch; mit `devices[].restart_entity` (auch bei externen Geräten)
-wählst du einen anderen Button, mit `show_restart: false` blendest du alles aus. Der Button muss in Home Assistant
-aktiviert sein.
+Ohne PoE-Versorgung (0 W oder kein Sensor) zeigt die Verbindung keine PoE-Anzeige.
 
-## Internet-Durchsatz (WAN)
+### Verbundene Geräte
 
-Die Core-Integration liefert keinen WAN-Durchsatz. Mit einer Community-Integration wie
-[UniFi Network+](https://github.com/42bios/unifi-network-plus) (Sensoren „WAN Download/Upload“) zeigt die Karte
-unter der Topologie zwei Kacheln „Internet ↓/↑“ mit Verlauf. Die Sensoren werden am Namen erkannt
-(`WAN` + `Download`/`Upload`, ohne Speedtest); sonst wählst du sie mit `wan_down_entity` und `wan_up_entity`.
-Abschalten mit `show_wan: false`.
+Access Points und Switches zeigen die Anzahl verbundener Clients, wenn es einen passenden Sensor gibt (Name enthält
+„Clients“). Einen anderen Sensor, etwa einen Template-Sensor, wählst du mit `devices[].clients_entity`.
 
-## Ping / Latenz
+### Internet und Ping
 
-Unter der Topologie zeigt die Karte die WAN-Latenz-Sensoren des Gateways (z. B.
-`sensor.ucg_ultra_cloudflare_wan_latency`) mit aktuellem Wert und Verlaufsgraph (`latency_hours`, Standard 24 h;
-Daten aus dem Home-Assistant-Verlauf). Name und Symbol werden aus dem Sensor abgeleitet (Cloudflare, Google,
-Microsoft bekommen passende Symbole). Eigene Auswahl:
+Unter dem Baum stehen die Kacheln **Internet ↓/↑** (WAN-Durchsatz) und **Ping** (WAN-Latenz), jeweils mit Verlauf aus dem
+Home-Assistant-Recorder (`latency_hours`, Standard 24). Die Core-Integration liefert keinen WAN-Durchsatz, dafür brauchst du
+Network+ oder eigene Sensoren (`wan_down_entity`, `wan_up_entity`). Ping-Sensoren werden automatisch gefunden. Eigene
+Auswahl:
 
 ```yaml
 latency_entities:
@@ -208,56 +142,33 @@ latency_entities:
     icon: mdi:cloud-outline
 ```
 
-## Externe Geräte
+### Externe Geräte
 
-Geräte, die nicht in UniFi vorkommen (NAS, Drucker, Server, Smart-Home-Bridge …), legst du unter
-`external_devices` an. Sie hängen am gewählten UniFi-Gerät und erscheinen mit gestricheltem Rand:
+Geräte außerhalb von UniFi (NAS, Drucker, Server …) legst du unter `external_devices` an. Sie hängen am gewählten
+UniFi-Gerät, haben einen gestrichelten Rand und bekommen PoE- und Datenwerte über `switch_port` wie UniFi-Geräte.
 
 ```yaml
 external_devices:
   - name: NAS
     model: Synology DS923+
-    icon: mdi:nas              # beliebiges Home-Assistant-Symbol (oder `image:` mit URL)
-    parent: 3f2a…              # UniFi-Gerät (im Editor per Auswahl)
-    switch_port: 6             # Port am übergeordneten Gerät -> PoE/Daten wie bei UniFi-Geräten
-    entity: binary_sensor.nas_online   # optional: Status (on/home/Zahl = online)
+    icon: mdi:nas                       # oder image: <URL>
+    parent: 3f2a…                       # UniFi-Gerät (im Editor per Auswahl)
+    switch_port: "6, 7"                 # zwei Ports = Link Aggregation
+    entity: binary_sensor.nas_online    # optional: Status
 ```
 
-Ohne `entity` gilt das Gerät als online. `poe_entity`, `down_entity` und `up_entity` funktionieren wie bei
-UniFi-Geräten. Ohne `parent` ordnet die Automatik das Gerät wie einen Access Point ein.
+**Status:** Ohne `entity` gilt das Gerät als online, solange am Port ein Link besteht (Link-Speed-Sensor von Network+),
+sonst immer. Ist der Port aktiv (Link, PoE oder Datenverkehr), zeigt die Karte das Gerät online, auch wenn `entity` etwas
+anderes meldet.
 
-## Vorschläge für externe Geräte
+**Vorschläge:** Mit Network+ schlägt der Editor-Button **„Externe Geräte aus der Portbelegung vorschlagen“** alle Geräte
+an Switch-Ports vor, die keine UniFi-Geräte sind, mit Name, Port, Symbol und IP. Du wählst aus, was übernommen wird.
 
-Mit UniFi Network+ kennt die Karte die Portbelegung: Der Sensor „Port N Link Speed“ nennt das Gerät am anderen Kabelende.
-Unter den externen Geräten im Editor schlägt der Button **„Externe Geräte aus der Portbelegung vorschlagen“** alle Geräte vor,
-die an einem Port hängen, aber kein UniFi-Gerät sind (NAS, Drucker, PC …). Du wählst aus, was übernommen wird. Die Karte füllt
-Name, übergeordnetes Gerät, Port (mehrere Ports zum selben Gerät = Link Aggregation), ein passendes Symbol, die IP-Adresse und,
-falls vorhanden, den Tracker des Geräts als Status-Entität. Unbelegte Ports werden ignoriert, vorhandene externe Geräte nicht
-erneut vorgeschlagen.
-
-**Status externer Geräte:** Ohne eigene Status-Entität gilt standardmäßig der Link-Speed-Sensor des Ports (Kabel steckt = online, kein Link = offline); gibt es keinen solchen Sensor, bleibt das Gerät online. Vorgeschlagene Geräte nutzen den Link-Speed-Sensor ihres Ports als Status-Entität (verfügbar, solange das Kabel
-steckt). Meldet die Status-Entität eines externen Geräts „offline“, das Gerät ist aber am Port aktiv (Link-Speed > 0, PoE-Leistung oder
-Datenverkehr), zeigt die Karte es als online an.
-
-## Link Aggregation und zwei Verbindungen
-
-**Link Aggregation (z. B. NAS mit zwei Kabeln):** Trage bei `switch_port` mehrere Ports ein, etwa `"6, 7"`.
-Die Karte addiert PoE-Leistung und Datenraten aller Ports und kennzeichnet die Verbindung mit „LAG ×2“.
-Das gilt für UniFi- und externe Geräte (auch für Switch-Uplinks).
-
-**Zwei Verbindungen (z. B. Mac per LAN und WLAN):** Lege das Gerät als externes Gerät an. Die erste
-Verbindung (LAN) über `parent` und `switch_port`, die zweite über `parent2` (z. B. der Access Point) mit
-`link_type2: wifi`. Das Gerät erscheint dann an beiden Stellen im Baum (zweite Kachel unter dem
-Access Point); es wird in den Summen nur einmal gezählt. Für die WLAN-Verbindung gibt es keine
-Port-Sensoren, dafür kannst du `down_entity2` und `up_entity2` (z. B. die Client-Bandbreitensensoren des
-Mac) angeben.
+**Zwei Verbindungen** (z. B. ein Mac per LAN und WLAN): Die zweite Verbindung gibst du mit `parent2` an. Das Gerät
+erscheint an beiden Stellen im Baum, zählt in der Zusammenfassung aber nur einmal.
 
 ```yaml
 external_devices:
-  - name: NAS
-    icon: mdi:nas
-    parent: <Switch>
-    switch_port: "6, 7"        # Link Aggregation
   - name: MacBook
     icon: mdi:laptop
     parent: <Switch>
@@ -265,80 +176,120 @@ external_devices:
     link_type: lan
     parent2: <Access Point>
     link_type2: wifi
-    down_entity2: sensor.macbook_tx
+    down_entity2: sensor.macbook_tx     # für WLAN gibt es keine Port-Sensoren
     up_entity2: sensor.macbook_rx
 ```
 
-`link_type` (`lan` | `wifi` | `none`) blendet eine Kennzeichnung an der Verbindung ein.
+### Link Aggregation
 
-## Hierarchie (Baumansicht)
+Mehrere Ports in `switch_port` (`"6, 7"` oder `NAS 1; NAS 2`) werden addiert, die Verbindung trägt „LAG ×2“. Das gilt für
+UniFi-Geräte, externe Geräte und Switch-Uplinks. Mit Network+ wird Link Aggregation automatisch erkannt.
 
-Die Karte nimmt die Uplink-Beziehung aus der Geräte-Registry (`via_device`). Liefert die UniFi-Integration
-sie nicht, würden alle Geräte nebeneinander stehen. Deshalb gilt:
+### Schmale Displays
 
-1. `devices[].parent` (im Editor: „Übergeordnetes Gerät (Uplink)“) hat Vorrang.
-2. Sonst die Beziehung aus der Geräte-Registry.
-3. Sonst, bei `auto_parent: true`: Switches hängen am Gateway, alle anderen Geräte am einzigen Switch.
-   Gibt es mehrere Switches, hängen Access Points und Kameras am Gateway, bis du ihnen per `parent`
-   den richtigen Switch zuweist.
+Passt der Baum nicht in die Breite, wechselt die Karte auf **kompakte Kacheln** und bei noch weniger Platz auf eine
+**Liste** (Geräte untereinander, eingerückt). Beim Drehen des Tablets wird neu gemessen. Fest einstellen mit
+`density: normal | compact | list`.
 
-Dienst-Einträge der Integration (WLAN-SSIDs, Controller) werden nicht angezeigt.
+### Bilder
 
-## Wie kommen die Flüsse zustande?
+Die Integrationen liefern keine Produktbilder. Lege PNGs unter `/config/www/unifi/` ab, benannt nach dem Modell
+(`U6-Pro.png`, Leerzeichen → `-`), und setze `image_base: /local/unifi/`. Einzelne Geräte überschreibst du mit
+`devices[].image`. Ohne Bild zeigt die Karte ein Symbol passend zum Gerätetyp, abgeleitet aus dem Modell (UDM/UDR →
+Gateway, USW/US → Switch, U6/U7/UAP → Access Point, UVC/G4/G5 → Kamera).
 
-Die UniFi-Integration stellt PoE-Leistung und Datenrate **pro Switch-Port** bereit, aber nicht, welches
-Gerät an welchem Port hängt. Deshalb ordnest du jedem Gerät **einmalig den Port am übergeordneten Gerät**
-zu (`switch_port`, im Editor ein Zahlenfeld). Die Karte sucht dann beim Switch automatisch die Sensoren
-dieses Ports (PoE-Leistung, RX, TX). Alternativ gibst du die Entitäten direkt an.
+## Optionen
 
-Hinweise:
+### Karte
 
-- Die Port-Bandbreitensensoren (RX/TX) sind in der UniFi-Integration **standardmäßig deaktiviert** und
-  müssen in den Entitäts-Einstellungen aktiviert werden.
-- Aus Sicht des Switch-Ports ist **RX = Upload des Geräts**, **TX = Download des Geräts**; die Karte
-  berücksichtigt das.
-- Datenraten in anderen Einheiten (kbit/s, Gbit/s, MB/s …) werden automatisch umgerechnet.
-- Die automatische Suche erkennt Sensoren am Namen (`Port 5 … PoE`, `… RX`, `… TX`). Weichen die
-  Namen bei dir ab, gib die Entitäten im Gerät direkt an.
+| Option | Standard | Beschreibung |
+| --- | --- | --- |
+| `title` | `UniFi Netzwerk` | Kartentitel |
+| `layout` | `tree` | `tree` (Topologie) oder `grid` (nach Gerätetyp gruppiert) |
+| `density` | `auto` | `auto`, `normal`, `compact` oder `list` |
+| `config_entry` | – | Nur Geräte dieses UniFi-Konfigurationseintrags |
+| `managed` | `false` | Nur Geräte und Sensoren aus den Einträgen zeigen (setzt die automatische Erkennung) |
+| `auto_parent` | `true` | Hierarchie per Faustregel ergänzen, wenn nichts anderes bekannt ist |
+| `show_offline` | `true` | Offline-Geräte anzeigen |
+| `show_flows` | `true` | PoE- und Datenwerte an den Verbindungen |
+| `animate_flows` | `true` | Linien animieren (respektiert „Bewegung reduzieren“) |
+| `show_summary` | `true` | Zusammenfassung im Kopf (Geräte online, PoE gesamt, Download/Upload am Gateway) |
+| `show_legend` | `true` | Legende unter dem Baum |
+| `show_clients` | `true` | Anzahl verbundener Clients |
+| `show_restart` | `true` | Neustart-Symbole |
+| `show_wan` | `true` | Internet-Kacheln |
+| `wan_down_entity` / `wan_up_entity` | automatisch | Sensoren für den WAN-Durchsatz |
+| `show_latency` | `true` | Ping-Kacheln |
+| `latency_entities[]` | automatisch | Ping-Sensoren (`entity`, `name`, `icon`) |
+| `latency_hours` | `24` | Zeitraum des Verlaufs in Stunden |
+| `swap_port_direction` | `false` | Download und Upload der Port-Sensoren tauschen |
+| `image_base` | – | Ordner mit Gerätebildern (`{Modell}.png`) |
+| `poe_color` / `down_color` / `up_color` | Theme | Linienfarben (HA-Farbname, Hex oder `rgb()`) |
+| `devices[]` | – | Einstellungen je UniFi-Gerät |
+| `external_devices[]` | – | Geräte außerhalb von UniFi |
 
-## Bilder
+### `devices[]` (UniFi-Geräte)
 
-Die UniFi-Integration liefert keine Produktbilder. Lege deine Bilder (PNG) unter `/config/www/unifi/` ab,
-z. B. `U6-Pro.png`, und setze `image_base: /local/unifi/`. Einzelne Geräte überschreibst du mit
-`devices[].image`. Fehlt ein Bild, zeigt die Karte ein Icon passend zum Gerätetyp. Der Gerätetyp wird aus
-dem Modellnamen abgeleitet (UDM/UDR → Gateway, USW → Switch, U6/U7 → Access Point, UVC/G4 → Kamera …).
+| Feld | Beschreibung |
+| --- | --- |
+| `device` | Geräte-ID (Pflicht, im Editor per Auswahl) |
+| `name`, `image` | Anzeigename und Bild |
+| `parent` | Übergeordnetes Gerät |
+| `switch_port` | Port(s) am übergeordneten Gerät, Nummer oder Name, mehrere mit Komma oder Semikolon |
+| `poe_entity`, `down_entity`, `up_entity` | Sensoren der Verbindung, wenn die Automatik sie nicht findet |
+| `link_type` | Kennzeichnung der Verbindung: `lan`, `wifi` oder `none` |
+| `poe_budget` | Nur Switches: PoE-Budget in W, zeigt einen Balken |
+| `clients_entity` | Sensor für die Anzahl verbundener Clients |
+| `restart_entity` | Neustart-Button |
+| `ip` | IP-Adresse für das Geräte-Fenster |
+| `poe_switch_entity`, `poe_cycle_entity` | PoE-Schalter und Power-Cycle-Button des Ports |
+
+### `external_devices[]`
+
+Wie `devices[]` (ohne `device`), dazu:
+
+| Feld | Beschreibung |
+| --- | --- |
+| `name` | Name (Pflicht) |
+| `model`, `icon` | Untertitel und Symbol (`mdi:…`) |
+| `entity` | Status-Entität (on/home/Zahl = online) |
+| `parent2`, `switch_port2`, `link_type2`, `down_entity2`, `up_entity2` | Zweite Verbindung |
+
+## Fehlersuche
+
+- **Keine Werte an den Verbindungen:** Port-Sensoren am Switch aktivieren (siehe Schnellstart). Ohne Network+ zusätzlich
+  `switch_port` am Gerät eintragen.
+- **Geräte stehen nebeneinander statt im Baum:** `parent` setzen oder Network+ installieren.
+- **Neue Version wird nicht geladen:** In HACS *Informationen aktualisieren*, herunterladen, Browser- bzw. App-Cache leeren.
+  Die geladene Version steht in der Browser-Konsole (`UNIFI-NETWORK-CARD 0.x.y`).
+- **Dashboard springt beim Scrollen** (vor allem iPad/Companion App): auf 0.17.6 oder neuer aktualisieren. Tritt es
+  trotzdem auf, hilft `animate_flows: false`.
 
 ## Anforderungen
 
-- Home Assistant mit eingerichteter [UniFi-Integration](https://www.home-assistant.io/integrations/unifi/)
-- Aktuelle Home-Assistant-Version (der Editor nutzt den `object`-Selektor mit `fields` sowie `ui_color`)
+- Home Assistant mit der UniFi-Integration und/oder UniFi Network+
+- Eine aktuelle Home-Assistant-Version (der Editor nutzt den `object`-Selektor mit `fields`)
 
 ## Entwicklung
 
 ```bash
-npm install
+npm ci
 npm test          # Unit-Tests (node:test)
 npm run build     # -> dist/unifi-network-card.js
 npm run watch
 ```
 
-Quellcode: `src/` (Karte, Editor, Styles, Übersetzungen, Hilfsfunktionen).
+Quellcode in `src/` (Karte, Editor, Styles, Übersetzungen, Hilfsfunktionen), Tests in `test/`.
 
-## Releases
+### Release
 
-Workflows unter `.github/workflows/`:
+1. Änderungen unter einer neuen Überschrift `## x.y.z – JJJJ-MM-TT` in die [CHANGELOG.md](CHANGELOG.md) schreiben und
+   `version` in `package.json` anpassen.
+2. *Actions → Release → Run workflow* mit der Version starten oder einen Tag `vx.y.z` pushen.
 
-- **CI** (`ci.yml`): Tests, Build und HACS-Validierung bei jedem Push/Pull-Request.
-- **Release** (`release.yml`): baut die Karte und veröffentlicht ein GitHub-Release mit
-  `unifi-network-card.js` als Asset (genau das lädt HACS).
-
-Release auslösen:
-
-1. **Per Tag:** `git tag v1.2.3 && git push origin v1.2.3`
-2. **Per Klick:** *Actions → Release → Run workflow*, Version `1.2.3` eintragen. Der Workflow legt den Tag
-   selbst an. Versionen mit Suffix (`1.3.0-beta.1`) werden automatisch als Pre-release veröffentlicht.
-
-Die Versionsnummer wird beim Build in die Datei eingebettet (sichtbar in der Browser-Konsole).
+Der Workflow testet, baut, legt das GitHub-Release mit `unifi-network-card.js` an (diese Datei lädt HACS) und übernimmt
+den passenden Abschnitt aus dem Changelog als Release-Text. Fehlt er, bricht der Release ab. Versionen mit Suffix
+(`1.3.0-beta.1`) werden als Pre-release veröffentlicht.
 
 ## Lizenz
 

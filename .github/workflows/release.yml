@@ -4,6 +4,7 @@ name: Release
 #  1. Tag pushen:            git tag v1.2.3 && git push origin v1.2.3
 #  2. Actions -> Release -> "Run workflow" und die Version (z. B. 1.2.3) eintragen.
 #     Der Workflow legt dann den Tag selbst an.
+# Voraussetzung: Die CHANGELOG.md hat einen Abschnitt "## 1.2.3"; er wird zum Release-Text.
 
 on:
   push:
@@ -72,6 +73,15 @@ jobs:
         with:
           node-version: 22
 
+      # Der Release-Text kommt aus der CHANGELOG.md (Abschnitt "## x.y.z"), nicht aus einem automatischen Diff-Link.
+      # Fehlt der Abschnitt, bricht der Release hier ab, bevor etwas veröffentlicht wird.
+      - name: Release-Text aus dem Changelog
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          node scripts/release-notes.mjs "$VERSION" > "$RUNNER_TEMP/notes.md"
+          cat "$RUNNER_TEMP/notes.md"
+
       - name: Install dependencies
         run: |
           if [ -f package-lock.json ]; then npm ci; else npm install; fi
@@ -90,11 +100,12 @@ jobs:
           TAG: ${{ steps.v.outputs.tag }}
           PRERELEASE: ${{ steps.v.outputs.prerelease }}
         run: |
-          FLAGS=(--generate-notes --title "$TAG")
+          FLAGS=(--notes-file "$RUNNER_TEMP/notes.md" --title "$TAG")
           if [ "$PRERELEASE" = "true" ]; then FLAGS+=(--prerelease); else FLAGS+=(--latest); fi
           if gh release view "$TAG" >/dev/null 2>&1; then
-            # Release existiert schon (z. B. manuell als Entwurf angelegt): Datei ersetzen
+            # Release existiert schon (z. B. manuell als Entwurf angelegt): Datei und Text ersetzen
             gh release upload "$TAG" dist/unifi-network-card.js --clobber
+            gh release edit "$TAG" --notes-file "$RUNNER_TEMP/notes.md"
           else
             # --target legt den Tag bei workflow_dispatch am aktuellen Commit an;
             # bei einem Tag-Push existiert er bereits und wird unverändert verwendet.
