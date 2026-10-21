@@ -1,0 +1,51 @@
+name: Release-Texte aktualisieren
+
+# Schreibt die Texte bestehender GitHub-Releases neu, jeweils aus dem passenden Abschnitt der CHANGELOG.md.
+# Nützlich, wenn der Changelog nachträglich korrigiert wurde.
+# Actions -> "Release-Texte aktualisieren" -> Run workflow (leer = alle Releases, sonst z. B. "v0.17.6 v0.17.7").
+
+on:
+  workflow_dispatch:
+    inputs:
+      tags:
+        description: "Tags, durch Leerzeichen getrennt (leer = alle)"
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  notes:
+    name: Release-Texte aus dem Changelog
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Texte setzen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAGS: ${{ inputs.tags }}
+        run: |
+          if [ -z "$TAGS" ]; then
+            TAGS=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" --paginate --jq '.[].tag_name')
+          fi
+          ok=0; skip=0
+          for tag in $TAGS; do
+            if node scripts/release-notes.mjs "${tag#v}" > "$RUNNER_TEMP/notes.md" 2>/dev/null; then
+              gh release edit "$tag" --notes-file "$RUNNER_TEMP/notes.md"
+              echo "aktualisiert: $tag"; ok=$((ok+1))
+            else
+              echo "::warning::Kein Changelog-Abschnitt für $tag, Text bleibt unverändert"; skip=$((skip+1))
+            fi
+          done
+          echo "Aktualisiert: $ok, übersprungen: $skip" >> "$GITHUB_STEP_SUMMARY"
