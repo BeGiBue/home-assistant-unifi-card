@@ -933,7 +933,7 @@ if (!window.customCards.some((c) => c.type === "unifi-network-card")) {
     name: "UniFi Network Card",
     description: "UniFi-Topologie mit Geräte-Bildern sowie Daten- und PoE-Flüssen.",
     preview: false,
-    documentationURL: "https://github.com/BeGiBue/unifi-custom-card",
+    documentationURL: "https://github.com/BeGiBue/home-assistant-unifi-card",
   });
 }
 
