@@ -155,16 +155,41 @@ export function numericState(stateObj) {
   return Number.isFinite(n) ? n : null;
 }
 
+/** Only a single color value may enter an inline CSS declaration. */
+function isColorValue(value, depth = 0) {
+  if (depth > 8) return false;
+  if (/^#[0-9a-f]{3}(?:[0-9a-f]|[0-9a-f]{3}|[0-9a-f]{5})?$/i.test(value)) return true;
+  if (/^(?:rgb|rgba|hsl|hsla)\(\s*[-+0-9.,%/\s]+\)$/i.test(value)) return true;
+  if (/^[a-z]+$/i.test(value)) return true;
+  const variable = /^var\(\s*--[a-z0-9_-]+\s*(?:,\s*(.+))?\)$/i.exec(value);
+  return !!variable && (!variable[1] || isColorValue(variable[1].trim(), depth + 1));
+}
+
 /** HA-Farbwert (ui_color liefert z.B. "red" oder "#ff0000") in CSS umwandeln */
 export function resolveColor(value, fallback) {
-  if (!value) return fallback;
   if (typeof value === "string") {
-    if (/^(#|rgb|hsl|var\()/i.test(value)) return value;
-    // HA-Farbnamen (primary, accent, red, …) -> --{name}-color bzw. --{name}-color
-    if (/^[a-z-]+$/i.test(value)) return `var(--${value}-color, ${fallback})`;
+    const color = value.trim();
+    if (/^[a-z-]+$/i.test(color)) return `var(--${color}-color, ${fallback})`;
+    if (isColorValue(color)) return color;
   }
-  if (Array.isArray(value) && value.length === 3) return `rgb(${value.join(",")})`;
+  if (Array.isArray(value) && value.length === 3 && value.every((n) => typeof n === "number" && Number.isFinite(n) && n >= 0 && n <= 255)) {
+    return `rgb(${value.join(",")})`;
+  }
   return fallback;
+}
+
+/** Validate the scheme before HTML escaping a configured image URL. */
+export function safeImageUrl(value, base = globalThis.location?.href || "http://localhost/") {
+  if (typeof value !== "string") return null;
+  const image = value.trim();
+  if (!image || /[\u0000-\u001f\u007f]/.test(image)) return null;
+  if (/^data:image\/(?:png|jpeg|gif|webp|avif);base64,[a-z0-9+/=]+$/i.test(image)) return image;
+  try {
+    const url = new URL(image, base);
+    return ["http:", "https:"].includes(url.protocol) && !url.username && !url.password ? image : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Geräteliste in einen Baum nach Elternbeziehung bringen */
@@ -189,7 +214,7 @@ export function buildTree(devices) {
  */
 export function resolveParents(devices, auto = true) {
   const byId = Object.fromEntries(devices.map((d) => [d.id, d]));
-  const valid = (id, self) => id && id !== self && byId[id];
+  const valid = (id, self) => id && id !== self && Object.hasOwn(byId, id);
   const parentOf = {};
   devices.forEach((d) => {
     parentOf[d.id] = valid(d.cfgParent, d.id) ? d.cfgParent : valid(d.viaParent, d.id) ? d.viaParent : null;
@@ -267,8 +292,9 @@ export function collectUnifiDevices(hass, configEntry) {
  */
 export function detectLinks(devices, states, entities = {}) {
   const norm = (s) => String(s || "").trim().toLowerCase();
-  const byMac = {};
-  const byName = {};
+  const byMac = Object.create(null);
+  // Device names are external data and may equal Object.prototype keys.
+  const byName = Object.create(null);
   devices.forEach((d) => {
     if (d.mac) byMac[norm(d.mac)] = d;
     if (d.name) byName[norm(d.name)] = d;
