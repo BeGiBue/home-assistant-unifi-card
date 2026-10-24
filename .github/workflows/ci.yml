@@ -48,9 +48,7 @@ jobs:
   hacs:
     name: HACS validation
     runs-on: ubuntu-latest
-    # Bis zum ersten Release gibt es kein Plugin-Asset; dann meldet HACS Fehler.
-    # Nach dem ersten Release diese Zeile entfernen, damit die Prüfung blockiert.
-    continue-on-error: true
+    # Als offizieller Katalogeintrag muss auch die HACS-Prüfung erfolgreich sein.
     steps:
       - uses: actions/checkout@v4
       - uses: hacs/action@main

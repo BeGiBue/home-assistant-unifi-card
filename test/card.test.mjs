@@ -564,3 +564,18 @@ test("Uplink-Sensor (UniFi Network+) ordnet Parent und Port zu; PoE Standard stÃ
   assert.deepEqual(card._links.ap, { parent: "sw", ports: [5] });
   assert.match(card.shadowRoot.innerHTML, /8,9 W/);
 });
+
+
+test("untrusted Konfiguration und Entity-Daten bleiben in HTML escaped", () => {
+  const attack = '\"><img src=x onerror=alert(1)>';
+  const card = new Card();
+  card.setConfig({ title: attack, devices: [{ device: "ap", name: attack, image: 'https://images.example.test/ap.png?x=' + attack }] });
+  card.hass = hass;
+  const html = card.shadowRoot.innerHTML;
+  assert.doesNotMatch(html, /<img src=x/);
+  assert.match(html, /&lt;img src=x onerror=alert\(1\)&gt;/);
+  const unsafe = new Card();
+  unsafe.setConfig({ devices: [{ device: "ap", image: "javascript:alert(1)" }], poe_color: "#fff;background-image:url(https://example.invalid/track)" });
+  unsafe.hass = hass;
+  assert.doesNotMatch(unsafe.shadowRoot.innerHTML, /javascript:|example\.invalid/);
+});

@@ -8,6 +8,7 @@ import {
   findPortEntity,
   numericState,
   resolveColor,
+  safeImageUrl,
   buildTree,
   resolveParents,
   isNetworkDevice,
@@ -445,4 +446,45 @@ test("release-notes: liest genau den Abschnitt einer Version aus dem Changelog",
   const { readFileSync } = await import("node:fs");
   const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
   assert.ok(releaseNotes(readFileSync(new URL("../CHANGELOG.md", import.meta.url), "utf8"), pkg.version), "CHANGELOG.md braucht einen Abschnitt für die Version aus package.json");
+});
+
+
+test("Farben können keine weiteren CSS-Deklarationen oder Ressourcen einschleusen", () => {
+  for (const bad of [
+    "#fff; background-image:url(https://example.invalid/track)",
+    "rgb(1,2,3); position:fixed", "var(--x);display:none", "var(--x, url(https://example.invalid))",
+    "#fff\\3b background:red", ["1);background:red", 2, 3], [1, NaN, 3], [1, 2, Infinity],
+  ]) assert.equal(resolveColor(bad, "fallback"), "fallback");
+  for (const good of ["#abc", "#abcd", "#aabbcc", "#aabbccdd", "rgba(1, 2, 3, 0.5)", "hsl(20 30% 40%)", "var(--primary-color)", "var(--x, var(--y, #fff))"]) {
+    assert.equal(resolveColor(good, "fallback"), good);
+  }
+});
+
+test("Bild-URLs erlauben Web- und lokale Bilder, verhindern fremde Schemata und Zugangsdaten", () => {
+  for (const good of ["/local/unifi/U6-Pro.png", "images/ap.png", "https://images.example.test/ap.png", "http://nas.local/ap.png", "data:image/png;base64,iVBORw0KGgo="]) {
+    assert.equal(safeImageUrl(good), good);
+  }
+  for (const bad of ["javascript:alert(1)", "java\nscript:alert(1)", "data:text/html,<script>alert(1)</script>", "data:image/svg+xml,<svg/>", "file:///etc/passwd", "https://user:secret@example.test/ap.png", "ftp://example.test/image.png", {}, null]) {
+    assert.equal(safeImageUrl(bad), null);
+  }
+});
+
+test("detectLinks behandelt reservierte Objektnamen wie normale Gerätedaten", () => {
+  const switchDevice = { id: "sw", name: "Switch", type: "switch", entityIds: ["sensor.link"] };
+  const link = (name) => ({
+    "sensor.link": { entity_id: "sensor.link", state: "1000", attributes: { friendly_name: "Switch Port 1 Link Speed", connected_device: name } },
+  });
+  for (const name of ["constructor", "__proto__", "toString", "hasOwnProperty"]) {
+    assert.deepEqual(detectLinks([switchDevice], link(name)), {}, "Unbekannte Namen erzeugen keine Verbindung und keinen Fehler");
+    const device = { id: "ap", name, haName: name, type: "ap", entityIds: [] };
+    assert.deepEqual(detectLinks([switchDevice, device], link(name)), { ap: { parent: "sw", ports: [1] } });
+  }
+});
+
+
+test("resolveParents akzeptiert nur tatsächlich vorhandene Eltern-IDs", () => {
+  for (const cfgParent of ["constructor", "__proto__", "toString"]) {
+    const devices = [{ id: "ap", name: "AP", type: "ap", cfgParent, viaParent: null }];
+    assert.equal(resolveParents(devices, false)[0].parent, null);
+  }
 });

@@ -4,6 +4,8 @@
 
 # UniFi Card
 
+**Version 1.0.0**
+
 Lovelace-Karte für Home Assistant, die dein UniFi-Netzwerk als Topologie zeigt: Gateway → Switches → Access Points,
 Kameras und weitere Geräte, mit PoE-Leistung und Datenraten an jeder Verbindung.
 
@@ -33,12 +35,26 @@ Kameras und weitere Geräte, mit PoE-Leistung und Datenraten an jeder Verbindung
 
 [![In HACS öffnen](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=BeGiBue&repository=home-assistant-unifi-card&category=plugin)
 
-Oder von Hand: HACS → ⋮ → *Benutzerdefinierte Repositories* → `https://github.com/BeGiBue/home-assistant-unifi-card`
-mit Typ **Dashboard** hinzufügen, „UniFi Card“ herunterladen, danach den Browser-Cache leeren bzw. in der Companion App
-den Frontend-Cache zurücksetzen.
+1. HACS öffnen und im offiziellen Katalog nach **UniFi Card** suchen.
+2. **UniFi Card** auswählen und herunterladen.
+3. Browser vollständig neu laden; in der Companion App bei Bedarf den Frontend-Cache zurücksetzen.
+4. Unter **Dashboard bearbeiten → Karte hinzufügen** die **UniFi Network Card** auswählen.
 
-HACS prüft eigene Repositories nur etwa alle 48 Stunden auf neue Versionen. Schneller geht es über ⋮ → *Informationen
-aktualisieren* am Repository.
+### Bestehende Custom-Repository-Installation migrieren
+
+1. Prüfen, ob **UniFi Card** im offiziellen HACS-Katalog verfügbar ist. Falls der Eintrag noch fehlt, zunächst die
+   Repository-Informationen in HACS aktualisieren und mit dem nächsten Schritt warten, bis er sichtbar ist.
+2. Unter **HACS → ⋮ → Benutzerdefinierte Repositories** nur den Eintrag
+   `BeGiBue/home-assistant-unifi-card` entfernen.
+3. Die bestehende Installation **nicht deinstallieren**. Dashboard-Ressourcen und Karten ebenfalls erhalten.
+4. HACS bzw. die Repository-Informationen aktualisieren und prüfen, ob **UniFi Card** weiterhin installiert angezeigt
+   wird. Das angebotene Update auf 1.0.0 installieren und das Frontend neu laden.
+5. Vorhandene YAML-Konfigurationen, Gerätezuordnungen und Dashboard-Karten prüfen. Sie können weiterverwendet werden;
+   eine erneute automatische Erkennung ist für die Migration nicht erforderlich.
+
+Die Major-Version kennzeichnet die Aufnahme in den offiziellen HACS-Katalog und bedeutet **nicht automatisch Breaking
+Changes**. Kartentyp, Optionen und bestehende Gerätezuordnungen bleiben kompatibel. Sicherheitsprüfungen verwerfen
+unzulässige Bild-URLs und CSS-Werte; Details stehen im [Changelog](CHANGELOG.md).
 
 ### Manuell
 
@@ -198,6 +214,10 @@ Die Integrationen liefern keine Produktbilder. Lege PNGs unter `/config/www/unif
 `devices[].image`. Ohne Bild zeigt die Karte ein Symbol passend zum Gerätetyp, abgeleitet aus dem Modell (UDM/UDR →
 Gateway, USW/US → Switch, U6/U7/UAP → Access Point, UVC/G4/G5 → Kamera).
 
+Bild-URLs dürfen lokale/relative Pfade, HTTP(S)-URLs ohne eingebettete Zugangsdaten oder Base64-Rasterbilder
+(PNG, JPEG, GIF, WebP, AVIF) sein. Andere Schemata und SVG-Daten-URLs werden verworfen; dann erscheint das Gerätesymbol.
+Externe Bilder lädt der Browser direkt vom angegebenen Host. Für rein lokale Nutzung Bilder unter `/local/` ablegen.
+
 ## Optionen
 
 ### Karte
@@ -261,7 +281,7 @@ Wie `devices[]` (ohne `device`), dazu:
   `switch_port` am Gerät eintragen.
 - **Geräte stehen nebeneinander statt im Baum:** `parent` setzen oder Network+ installieren.
 - **Neue Version wird nicht geladen:** In HACS *Informationen aktualisieren*, herunterladen, Browser- bzw. App-Cache leeren.
-  Die geladene Version steht in der Browser-Konsole (`UNIFI-NETWORK-CARD 0.x.y`).
+  Die geladene Version steht in der Browser-Konsole (`UNIFI-NETWORK-CARD 1.0.0`).
 - **Dashboard springt beim Scrollen** (vor allem iPad/Companion App): auf 0.17.6 oder neuer aktualisieren. Tritt es
   trotzdem auf, hilft `animate_flows: false`.
 
@@ -284,7 +304,8 @@ Quellcode in `src/` (Karte, Editor, Styles, Übersetzungen, Hilfsfunktionen), Te
 ### Release
 
 1. Änderungen unter einer neuen Überschrift `## x.y.z – JJJJ-MM-TT` in die [CHANGELOG.md](CHANGELOG.md) schreiben und
-   `version` in `package.json` anpassen.
+   `version` in `package.json` und `package-lock.json` sowie die Versionsangaben in Quelle und README anpassen.
+   `RELEASE_NOTES_<Version>.md` aus demselben Changelog-Abschnitt erzeugen.
 2. *Actions → Release → Run workflow* mit der Version starten oder einen Tag `vx.y.z` pushen.
 
 Der Workflow testet, baut, legt das GitHub-Release mit `unifi-network-card.js` an (diese Datei lädt HACS) und übernimmt

@@ -9,6 +9,7 @@ import {
   findPortEntity,
   numericState,
   resolveColor,
+  safeImageUrl,
   buildTree,
   resolveParents,
   collectUnifiDevices,
@@ -25,7 +26,7 @@ import {
 import "./unifi-network-card-editor.js";
 
 /* global __VERSION__ */
-const VERSION = typeof __VERSION__ !== "undefined" ? __VERSION__ : "dev";
+const VERSION = typeof __VERSION__ !== "undefined" ? __VERSION__ : "1.0.0";
 
 const ICONS = {
   gateway: '<rect x="6" y="22" width="52" height="20" rx="4"/><circle cx="16" cy="32" r="2.4" fill="currentColor"/><circle cx="24" cy="32" r="2.4" fill="currentColor"/><path d="M38 28h14M38 36h14"/>',
@@ -629,11 +630,11 @@ class UnifiNetworkCard extends HTMLElement {
 
   _imageUrl(d) {
     const c = this._config;
-    if (d.cfg?.image) return d.cfg.image;
+    if (d.cfg?.image) return safeImageUrl(d.cfg.image);
     if (d.external) return null;
     if (c.image_base && d.model) {
       const base = c.image_base.endsWith("/") ? c.image_base : `${c.image_base}/`;
-      return `${base}${encodeURIComponent(d.model.replace(/\s+/g, "-"))}.png`;
+      return safeImageUrl(`${base}${encodeURIComponent(d.model.replace(/\s+/g, "-"))}.png`);
     }
     return null;
   }
