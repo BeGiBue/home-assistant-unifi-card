@@ -13,6 +13,8 @@ import {
   buildTree,
   resolveParents,
   collectUnifiDevices,
+  linkDevice,
+  macOf,
   parsePorts,
   downsample,
   sparkline,
@@ -111,8 +113,7 @@ class UnifiNetworkCard extends HTMLElement {
    */
   _fit() {
     const card = this.shadowRoot?.querySelector?.("ha-card");
-    if (!card || !this._config) return;
-    if (!card.querySelector) return;
+    if (!card?.querySelector || !this._config) return;
     const want = this._config.density || "auto";
     const levels = ["normal", "compact", "list"];
     const tree = card.querySelector("ul.tree.root");
@@ -219,14 +220,7 @@ class UnifiNetworkCard extends HTMLElement {
     // Verwaltete Liste: nur Geräte anzeigen, die als Eintrag in `devices` stehen (Löschen blendet ein Gerät aus)
     const listed = new Set((this._config.devices || []).map((x) => x && x.device));
     const list = this._config.managed === true ? all.filter((d) => listed.has(d.id)) : all;
-    this._allUnifi = all.map((d) => ({
-      id: d.id,
-      name: d.name_by_user || d.name || d.model || "",
-      haName: d.name_by_user || d.name || "",
-      type: typeOf(d.model || ""),
-      mac: ((d.connections || []).find((c) => c && c[0] === "mac") || [])[1] || "",
-      entityIds: (byDevice[d.id] || []).map((e) => e.entity_id),
-    }));
+    this._allUnifi = all.map((d) => ({ ...linkDevice(d, byDevice), name: d.name_by_user || d.name || d.model || "" }));
     const known = new Set(list.map((d) => d.id));
     const base = list.map((d) => {
       const cfg = this._overrides(d.id);
@@ -241,7 +235,7 @@ class UnifiNetworkCard extends HTMLElement {
         type: typeOf(model),
         entityIds: (byDevice[d.id] || []).map((e) => e.entity_id),
         haName: d.name_by_user || d.name || "",
-        mac: ((d.connections || []).find((c) => c && c[0] === "mac") || [])[1] || "",
+        mac: macOf(d),
         cfg,
       };
     });
@@ -358,11 +352,10 @@ class UnifiNetworkCard extends HTMLElement {
         const s = st[x.entity];
         if (!s) return null;
         const lab = latencyLabel(x, s, localize(this._hass)("wan_latency"));
-        const name = lab.name;
         const n = Number(s.state);
         return {
           entity: x.entity,
-          name,
+          name: lab.name,
           icon: lab.icon,
           value: Number.isFinite(n) && s.state !== "" ? n : null,
           unit: s.attributes?.unit_of_measurement || "ms",
@@ -433,12 +426,19 @@ class UnifiNetworkCard extends HTMLElement {
       });
   }
 
+  /** Sensor-Suche am übergeordneten Gerät (für PoE, Datenraten, Link und PoE-Steuerung) */
+  _portFinder(parent) {
+    const parentStates = parent.entityIds.map((id) => this._hass.states[id]).filter(Boolean);
+    const opts = { deviceName: parent.haName, entities: this._hass.entities };
+    return (port, kind) => findPortEntity(parentStates, port, kind, opts);
+  }
+
   _flow(d, parent) {
     if (!parent) return null;
     const c = d.cfg || {};
     const t0 = localize(this._hass);
     const st = this._hass.states;
-    const parentStates = parent.entityIds.map((id) => st[id]).filter(Boolean);
+    const find = this._portFinder(parent);
     // Mehrere Ports (Link Aggregation): Leistung und Datenraten werden addiert
     let ports = parsePorts(c.switch_port);
     if (!ports.length && d.autoLink && d.autoLink.parent === parent.id) ports = d.autoLink.ports;
@@ -447,7 +447,7 @@ class UnifiNetworkCard extends HTMLElement {
     const pick = (explicit, kind) =>
       explicit && st[explicit]
         ? [st[explicit]]
-        : ports.map((p) => findPortEntity(parentStates, p, kind, { deviceName: parent.haName, entities: this._hass.entities })).filter(Boolean);
+        : ports.map((p) => find(p, kind)).filter(Boolean);
     const poe = pick(c.poe_entity, "poe");
     // swap_port_direction: falls eine Integration RX/TX (bzw. Download/Upload) je Port andersherum liefert
     const swap = this._config.swap_port_direction === true;
@@ -488,10 +488,8 @@ class UnifiNetworkCard extends HTMLElement {
   /** Link-Speed-Sensor der Ports: true/false, oder null wenn kein solcher Sensor existiert */
   _linkUp(d, parent) {
     if (!parent) return null;
-    const st = this._hass.states;
-    const parentStates = parent.entityIds.map((id) => st[id]).filter(Boolean);
-    const opts = { deviceName: parent.haName, entities: this._hass.entities };
-    const sensors = parsePorts(d.cfg?.switch_port).map((p) => findPortEntity(parentStates, p, "link", opts)).filter(Boolean);
+    const find = this._portFinder(parent);
+    const sensors = parsePorts(d.cfg?.switch_port).map((p) => find(p, "link")).filter(Boolean);
     if (!sensors.length) return null;
     return sensors.some((s) => Number(s.state) > 0);
   }
@@ -501,10 +499,9 @@ class UnifiNetworkCard extends HTMLElement {
     if (!parent || d.secondary || !d.flow) return null;
     const c = d.cfg || {};
     const st = this._hass.states;
-    const parentStates = parent.entityIds.map((id) => st[id]).filter(Boolean);
-    const opts = { deviceName: parent.haName, entities: this._hass.entities };
+    const find = this._portFinder(parent);
     const pick = (explicit, kind) =>
-      explicit && st[explicit] ? [explicit] : (d.flow.ports || []).map((p) => findPortEntity(parentStates, p, kind, opts)?.entity_id).filter(Boolean);
+      explicit && st[explicit] ? [explicit] : (d.flow.ports || []).map((p) => find(p, kind)?.entity_id).filter(Boolean);
     const switches = pick(c.poe_switch_entity, "poe_switch");
     const cycles = pick(c.poe_cycle_entity, "cycle");
     if (!switches.length && !cycles.length) return null;
@@ -662,14 +659,9 @@ class UnifiNetworkCard extends HTMLElement {
   _link(d, locale, t) {
     const f = d.flow;
     const act = d.poeCtl ? ` act" data-id="${esc(d.id)}" role="button" tabindex="0" title="${esc(t("poe_manage"))}` : "";
-    return this._linkInner(d, f, act, locale, t);
-  }
-
-  _linkInner(d, f, act, locale, t) {
     if (!this._config.show_flows || !f) return `<div class="link${act}"><div class="stem ${d.online ? 'on' : 'off'}"></div></div>`;
-    const hasData = f.down != null || f.up != null;
     if (!d.online) {
-      return `<div class="link${act}"><div class="stem ${d.online ? 'on' : 'off'}"></div><div class="chip" style="left:calc(50% + 10px)"><span class="off">${esc(t("no_link"))}</span></div></div>`;
+      return `<div class="link${act}"><div class="stem off"></div><div class="chip" style="left:calc(50% + 10px)"><span class="off">${esc(t("no_link"))}</span></div></div>`;
     }
     const lines = [];
     const dur = (v) => (v >= 100 ? 0.5 : v >= 10 ? 0.8 : v >= 1 ? 1.2 : 2);
@@ -680,7 +672,7 @@ class UnifiNetworkCard extends HTMLElement {
     if (f.up != null) lines.push(`<div class="fl u upw${f.up > 0.01 ? "" : " idle"}" style="--dur:${dur(f.up)}s"></div>`);
     if (!lines.length) {
       const tag = this._tag(f, t);
-      return `<div class="link${act}"><div class="stem ${d.online ? 'on' : 'off'}"></div>${tag ? `<div class="chip" style="left:calc(50% + 10px)">${tag}</div>` : ""}</div>`;
+      return `<div class="link${act}"><div class="stem on"></div>${tag ? `<div class="chip" style="left:calc(50% + 10px)">${tag}</div>` : ""}</div>`;
     }
     const width = lines.length * 4 + (lines.length - 1) * 2;
     return `<div class="link${act}"><div class="lines" style="width:${width}px;left:calc(50% - ${width / 2}px)">${lines.join("")}</div><div class="chip" style="left:calc(50% + ${width / 2 + 7}px)">${this._tag(f, t)}${this._chip(f, t, locale)}</div></div>`;
@@ -731,15 +723,19 @@ class UnifiNetworkCard extends HTMLElement {
     }).join("");
   }
 
+  _sparkSvg(hist) {
+    const sp = sparkline(hist);
+    return sp
+      ? `<svg class="sp" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true"><path class="sa" d="${sp.area}"/><path class="sl" d="${sp.line}" vector-effect="non-scaling-stroke"/></svg>`
+      : "";
+  }
+
   _wanHtml(list, locale, t) {
     if (!list || !list.length) return "";
     const arrow = { down: "↓", up: "↑" };
     const cells = list
       .map((w) => {
-        const sp = sparkline(w.hist);
-        const svg = sp
-          ? `<svg class="sp" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true"><path class="sa" d="${sp.area}"/><path class="sl" d="${sp.line}" vector-effect="non-scaling-stroke"/></svg>`
-          : "";
+        const svg = this._sparkSvg(w.hist);
         return `<div class="pg ${w.kind}" data-entity="${esc(w.entity)}" role="button" tabindex="0" title="${esc(w.entity)}">${svg}<div class="pc"><b class="ar ${w.kind} big">${arrow[w.kind]}</b><div><div class="pn">${esc(t(w.label))}</div><div class="pv">${esc(formatRate(w.value, locale))}</div></div></div></div>`;
       })
       .join("");
@@ -752,10 +748,7 @@ class UnifiNetworkCard extends HTMLElement {
       l.value === null ? "–" : `${new Intl.NumberFormat(locale || undefined, { maximumFractionDigits: 1 }).format(l.value)} ${l.unit}`;
     const cells = list
       .map((l) => {
-        const sp = sparkline(l.hist);
-        const svg = sp
-          ? `<svg class="sp" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true"><path class="sa" d="${sp.area}"/><path class="sl" d="${sp.line}" vector-effect="non-scaling-stroke"/></svg>`
-          : "";
+        const svg = this._sparkSvg(l.hist);
         return `<div class="pg" data-entity="${esc(l.entity)}" role="button" tabindex="0" title="${esc(l.entity)}">${svg}<div class="pc"><ha-icon icon="${esc(l.icon)}"></ha-icon><div class="pn">${esc(l.name)}</div><div class="pv">${esc(fmt(l))}</div></div></div>`;
       })
       .join("");
@@ -770,9 +763,10 @@ class UnifiNetworkCard extends HTMLElement {
       if (!d) return "";
       const lang = this._hass?.locale?.language || this._hass?.language;
       const up = this._uptime(d);
+      const ip = this._ip(d);
       const rows = [
         [t("info_status"), `${esc(t(d.online ? "online" : "offline"))}${d.update ? ` · ${esc(t("update"))}` : ""}`],
-        [t("info_ip"), this._ip(d) ? esc(this._ip(d)) : "–"],
+        [t("info_ip"), ip ? esc(ip) : "–"],
         [t("info_uptime"), up === null ? "–" : esc(formatDuration(up, lang))],
       ];
       const rs = d.restart ? `<button type="button" class="danger" data-act="dev-restart" data-entity="${esc(d.restart)}" data-name="${esc(d.name)}">${esc(t("restart"))}</button>` : "";
