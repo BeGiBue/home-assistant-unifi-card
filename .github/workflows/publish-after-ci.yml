@@ -27,7 +27,6 @@ jobs:
           set -euo pipefail
           VERSION="$(node -p "require('./package.json').version")"
           [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
-          test -s "RELEASE_NOTES_${VERSION}.md"
           MAIN_SHA="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq .commit.sha)"
           if [ "$MAIN_SHA" != "$SOURCE_SHA" ]; then
             echo "Main advanced since CI; skipping outdated release dispatch."

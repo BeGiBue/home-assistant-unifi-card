@@ -288,30 +288,6 @@ Wie `devices[]` (ohne `device`), dazu:
 - Home Assistant mit der UniFi-Integration und/oder UniFi Network+
 - Eine aktuelle Home-Assistant-Version (der Editor nutzt den `object`-Selektor mit `fields`)
 
-## Entwicklung
-
-```bash
-npm ci
-npm test          # Unit-Tests (node:test)
-npm run build     # -> dist/unifi-network-card.js
-npm run watch
-```
-
-Quellcode in `src/` (Karte, Editor, Styles, Übersetzungen, Hilfsfunktionen), Tests in `test/`.
-
-### Release
-
-1. Änderungen unter einer neuen Überschrift `## x.y.z – JJJJ-MM-TT` in die [CHANGELOG.md](CHANGELOG.md) schreiben und
-   `version` in `package.json` und `package-lock.json` sowie die Versionsangaben in Quelle und README anpassen.
-   `RELEASE_NOTES_<Version>.md` aus demselben Changelog-Abschnitt erzeugen.
-2. Nach erfolgreicher CI auf `main` startet der Release automatisch, sofern `RELEASE_NOTES_<Version>.md` vorhanden und
-   für die Version noch kein Release angelegt ist. Alternativ *Actions → Release → Run workflow* mit der Version
-   starten oder einen Tag `vx.y.z` pushen.
-
-Der Workflow testet, baut, legt das GitHub-Release mit `unifi-network-card.js` an (diese Datei lädt HACS) und übernimmt
-den passenden Abschnitt aus dem Changelog als Release-Text. Fehlt er, bricht der Release ab. Versionen mit Suffix
-(`1.3.0-beta.1`) werden als Pre-release veröffentlicht.
-
 ## Lizenz
 
 AGPL-3.0-only
