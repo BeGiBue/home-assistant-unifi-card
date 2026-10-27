@@ -28,7 +28,7 @@ import {
 import "./unifi-network-card-editor.js";
 
 /* global __VERSION__ */
-const VERSION = typeof __VERSION__ !== "undefined" ? __VERSION__ : "1.0.0";
+const VERSION = typeof __VERSION__ !== "undefined" ? __VERSION__ : "1.0.1";
 
 const ICONS = {
   gateway: '<rect x="6" y="22" width="52" height="20" rx="4"/><circle cx="16" cy="32" r="2.4" fill="currentColor"/><circle cx="24" cy="32" r="2.4" fill="currentColor"/><path d="M38 28h14M38 36h14"/>',

@@ -4,7 +4,7 @@
 
 # UniFi Card
 
-**Version 1.0.0**
+**Version 1.0.1**
 
 Lovelace-Karte für Home Assistant, die dein UniFi-Netzwerk als Topologie zeigt: Gateway → Switches → Access Points,
 Kameras und weitere Geräte, mit PoE-Leistung und Datenraten an jeder Verbindung.
@@ -280,7 +280,7 @@ Wie `devices[]` (ohne `device`), dazu:
   `switch_port` am Gerät eintragen.
 - **Geräte stehen nebeneinander statt im Baum:** `parent` setzen oder Network+ installieren.
 - **Neue Version wird nicht geladen:** In HACS *Informationen aktualisieren*, herunterladen, Browser- bzw. App-Cache leeren.
-  Die geladene Version steht in der Browser-Konsole (`UNIFI-NETWORK-CARD 1.0.0`).
+  Die geladene Version steht in der Browser-Konsole (`UNIFI-NETWORK-CARD 1.0.1`).
 - **Dashboard springt beim Scrollen** (vor allem iPad/Companion App): `animate_flows: false` setzen.
 
 ## Anforderungen
