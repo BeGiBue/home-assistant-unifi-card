@@ -2,7 +2,7 @@
  * Reine Hilfsfunktionen (ohne DOM), damit sie mit `node --test` getestet werden können.
  */
 
-export const TYPE_RULES = [
+const TYPE_RULES = [
   ["gateway", /^(UDM|UDR|UXG|UCG|UDW|USG|UDMA|EFG|UCK|UNVR)/i],
   ["switch", /^(USW|US-|US\d|USL|USM|USF|ECS|Flex|Switch)/i],
   ["camera", /^(UVC|G3|G4|G5|G6|AI ?Port|Camera|UP-?Cam)/i],
@@ -12,9 +12,35 @@ export const TYPE_RULES = [
 ];
 
 /** Integrationen, aus denen die Karte Geräte liest (Core-Integration und Community-Integration UniFi Network+) */
-export const UNIFI_PLATFORMS = ["unifi", "unifi_network_plus"];
+const UNIFI_PLATFORMS = ["unifi", "unifi_network_plus"];
 
 export const TYPE_ORDER = ["gateway", "switch", "ap", "camera", "phone", "access", "other", "external"];
+
+const norm = (s) => String(s || "").trim().toLowerCase();
+
+/** MAC-Adresse aus den Verbindungen eines Registry-Geräts */
+export function macOf(d) {
+  return ((d.connections || []).find((c) => c && c[0] === "mac") || [])[1] || "";
+}
+
+/** Registry-Gerät in die kurze Form für die Port-Erkennung bringen */
+export function linkDevice(d, byDevice) {
+  const name = d.name_by_user || d.name || "";
+  return {
+    id: d.id,
+    name,
+    haName: name,
+    type: typeOf(d.model || ""),
+    mac: macOf(d),
+    entityIds: (byDevice[d.id] || []).map((e) => e.entity_id),
+  };
+}
+
+/** Portname eines Sensors: "Port 5" -> 5, ein eigener Name ("NAS") bleibt Text */
+function portIdOf(label) {
+  const m = /^(?:port|anschluss)\s*0*(\d+)$/i.exec(label);
+  return m ? Number(m[1]) : label;
+}
 
 /**
  * Die UniFi-Integration legt neben echten Geräten auch Dienst-Einträge an
@@ -269,7 +295,6 @@ export function collectUnifiDevices(hass, configEntry) {
   // Das Network+-Gerät wird (über den Namen) in das Core-Gerät eingemischt, seine Entitäten bleiben nutzbar.
   const isPlus = (d) => (byDevice[d.id] || []).some((e) => e.platform === "unifi_network_plus");
   const isCore = (d) => (byDevice[d.id] || []).some((e) => e.platform === "unifi");
-  const norm = (s) => String(s || "").trim().toLowerCase();
   const core = new Map();
   list.filter((d) => isCore(d) && !isPlus(d)).forEach((d) => {
     [d.name, d.name_by_user].filter(Boolean).forEach((n) => core.set(norm(n), d));
@@ -291,7 +316,6 @@ export function collectUnifiDevices(hass, configEntry) {
  * Ergebnis: { [kindId]: { parent, ports: [..] } } – mehrere Ports zum selben Elternteil = Link Aggregation.
  */
 export function detectLinks(devices, states, entities = {}) {
-  const norm = (s) => String(s || "").trim().toLowerCase();
   const byMac = Object.create(null);
   // Device names are external data and may equal Object.prototype keys.
   const byName = Object.create(null);
@@ -314,9 +338,7 @@ export function detectLinks(devices, states, entities = {}) {
       const a = s.attributes || {};
       const k = portSensorKey({ entity_id: id, attributes: a }, { deviceName: p.haName || p.name, entities });
       if (!k || k.kind !== "link" || !k.label) return;
-      // "Port 5" -> 5, eigener Name ("NAS") bleibt als Name
-      const m = /^(?:port|anschluss)\s*0*(\d+)$/i.exec(k.label);
-      const portId = m ? Number(m[1]) : k.label;
+      const portId = portIdOf(k.label);
       const child = (a.connected_mac && byMac[norm(a.connected_mac)]) || (a.connected_device && byName[norm(a.connected_device)]);
       if (!child || child.id === p.id) return;
       (((found[child.id] ||= {})[p.id]) ||= []).push(portId);
@@ -369,14 +391,7 @@ export function detectLinks(devices, states, entities = {}) {
  * Ergebnis: { devices: neue devices[]-Liste, changed: Anzahl betroffener Geräte }
  */
 export function buildAutoDeviceEntries(list, byDevice, states, existing = [], entities = {}) {
-  const devs = list.map((d) => ({
-    id: d.id,
-    name: d.name_by_user || d.name || "",
-    haName: d.name_by_user || d.name || "",
-    type: typeOf(d.model || ""),
-    mac: ((d.connections || []).find((c) => c && c[0] === "mac") || [])[1] || "",
-    entityIds: (byDevice[d.id] || []).map((e) => e.entity_id),
-  }));
+  const devs = list.map((d) => linkDevice(d, byDevice));
   const links = detectLinks(devs, states, entities);
   const out = (existing || []).map((e) => ({ ...e, ...(e.auto_detected ? { auto_detected: { ...e.auto_detected } } : {}) }));
   const empty = (v) => v === undefined || v === null || v === "";
@@ -606,14 +621,7 @@ const ICON_GUESS = [
  * Ergebnis: [{ name, parent, parentName, ports, ip, mac, icon, entity }]
  */
 export function suggestExternalDevices(list, byDevice, states, entities = {}, existing = []) {
-  const norm = (s) => String(s || "").trim().toLowerCase();
-  const devs = list.map((d) => ({
-    id: d.id,
-    name: d.name_by_user || d.name || "",
-    type: typeOf(d.model || ""),
-    mac: ((d.connections || []).find((c) => c && c[0] === "mac") || [])[1] || "",
-    entityIds: (byDevice[d.id] || []).map((e) => e.entity_id),
-  }));
+  const devs = list.map((d) => linkDevice(d, byDevice));
   const knownMac = new Set(devs.map((d) => norm(d.mac)).filter(Boolean));
   const knownName = new Set(devs.map((d) => norm(d.name)).filter(Boolean));
   const groups = {};
@@ -627,8 +635,7 @@ export function suggestExternalDevices(list, byDevice, states, entities = {}, ex
       if (!k || k.kind !== "link" || !k.label) return;
       if (!a.connected_device && !a.connected_mac) return;
       if ((a.connected_mac && knownMac.has(norm(a.connected_mac))) || (a.connected_device && knownName.has(norm(a.connected_device)))) return; // UniFi-Gerät
-      const m = /^(?:port|anschluss)\s*0*(\d+)$/i.exec(k.label);
-      const portId = m ? Number(m[1]) : k.label;
+      const portId = portIdOf(k.label);
       const key = `${p.id}|${norm(a.connected_mac) || norm(a.connected_device)}`;
       const g = (groups[key] ||= { name: a.connected_device || a.connected_mac, parent: p.id, parentName: p.name, ports: [], ip: a.connected_ip || "", mac: a.connected_mac || "", linkSensor: id });
       if (!g.ports.includes(portId)) g.ports.push(portId);

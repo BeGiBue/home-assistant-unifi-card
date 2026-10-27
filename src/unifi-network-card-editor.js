@@ -1,5 +1,5 @@
 import { localize } from "./localize.js";
-import { collectUnifiDevices, typeOf, TYPE_ORDER, buildAutoDeviceEntries, detectLatency, detectWan, mergeLatencyEntries, suggestExternalDevices } from "./utils.js";
+import { collectUnifiDevices, typeOf, TYPE_ORDER, buildAutoDeviceEntries, detectLatency, detectWan, mergeLatencyEntries, suggestExternalDevices, linkDevice } from "./utils.js";
 
 /**
  * Visueller Editor auf Basis von <ha-form>: alle Einstellungen laufen über
@@ -310,10 +310,7 @@ class UnifiNetworkCardEditor extends HTMLElement {
     const t = localize(this._hass);
     const { list, byDevice } = collectUnifiDevices(this._hass, this._config.config_entry);
     const { devices, changed } = buildAutoDeviceEntries(list, byDevice, this._hass.states, this._config.devices || [], this._hass.entities);
-    const defs = detectLatency(
-      list.map((d) => ({ name: d.name_by_user || d.name || "", entityIds: (byDevice[d.id] || []).map((e) => e.entity_id) })),
-      this._hass.states
-    );
+    const defs = detectLatency(list.map((d) => linkDevice(d, byDevice)), this._hass.states);
     const lat = mergeLatencyEntries(this._config.latency_entities, defs, this._hass.states, t("wan_latency"));
     const wan = detectWan(this._hass.states);
     const config = { ...this._config, managed: true };
@@ -369,14 +366,9 @@ class UnifiNetworkCardEditor extends HTMLElement {
       if (g.ip) e.ip = g.ip;
       external.push(e);
     });
-    const config = { ...this._config, external_devices: external };
-    this._config = config;
-    this._emitted = JSON.stringify(config);
-    this._refreshOptions();
-    this._setData();
+    this._replaceConfig({ ...this._config, external_devices: external });
     this._suggestList.textContent = "";
     this._suggestStatus.textContent = t("e_suggest_done").replace("{n}", String(chosen.length));
-    this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));
   }
 
   _applyLinks(silent = false) {
@@ -386,11 +378,20 @@ class UnifiNetworkCardEditor extends HTMLElement {
       if (!silent) this._status.textContent = t("e_apply_none");
       return;
     }
+    this._replaceConfig(config);
+    this._status.textContent = silent ? "" : t("e_applied").replace("{n}", String(count));
+  }
+
+  /** Vom Editor selbst erzeugte Konfiguration übernehmen, Formulare aktualisieren und an Home Assistant melden */
+  _replaceConfig(config) {
     this._config = config;
-    this._emitted = JSON.stringify(config);
     this._refreshOptions();
     this._setData();
-    this._status.textContent = silent ? "" : t("e_applied").replace("{n}", String(count));
+    this._emit(config);
+  }
+
+  _emit(config) {
+    this._emitted = JSON.stringify(config);
     this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));
   }
 
@@ -414,6 +415,11 @@ class UnifiNetworkCardEditor extends HTMLElement {
   /** Schema neu setzen, falls sich die Geräteauswahl durch neue Einträge geändert hat */
   _refreshOptions() {
     if (!this._form || JSON.stringify(this._deviceOptions()) === this._deviceSig) return;
+    this._setSchema();
+  }
+
+  /** Oberes Formular: alles außer den externen Geräten; unteres Formular: nur die externen Geräte */
+  _setSchema() {
     const schema = this._schema();
     this._form.schema = schema.slice(0, -1);
     this._formB.schema = schema.slice(-1);
@@ -447,11 +453,10 @@ class UnifiNetworkCardEditor extends HTMLElement {
         if (v === "" || v === undefined || v === null || (Array.isArray(v) && v.length === 0)) delete config[k];
       });
       this._config = config;
-      this._emitted = JSON.stringify(config);
       // das jeweils andere Formular auf demselben Stand halten
       const other = form === this._form ? this._formB : this._form;
       if (other) other.data = this._data();
-      this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));
+      this._emit(config);
     });
     return form;
   }
@@ -499,9 +504,7 @@ class UnifiNetworkCardEditor extends HTMLElement {
     this._devRef = this._hass.devices;
     if (firstTime || lang !== this._lang || devicesChanged) {
       this._lang = lang;
-      const schema = this._schema();
-      this._form.schema = schema.slice(0, -1);
-      this._formB.schema = schema.slice(-1);
+      this._setSchema();
     }
     if (firstTime || dataChanged) this._setData();
 

@@ -4,7 +4,7 @@
 
 # UniFi Card
 
-**Version 1.0.0**
+**Version 1.0.1**
 
 Lovelace-Karte für Home Assistant, die dein UniFi-Netzwerk als Topologie zeigt: Gateway → Switches → Access Points,
 Kameras und weitere Geräte, mit PoE-Leistung und Datenraten an jeder Verbindung.
@@ -52,9 +52,8 @@ Kameras und weitere Geräte, mit PoE-Leistung und Datenraten an jeder Verbindung
 5. Vorhandene YAML-Konfigurationen, Gerätezuordnungen und Dashboard-Karten prüfen. Sie können weiterverwendet werden;
    eine erneute automatische Erkennung ist für die Migration nicht erforderlich.
 
-Die Major-Version kennzeichnet die Aufnahme in den offiziellen HACS-Katalog und bedeutet **nicht automatisch Breaking
-Changes**. Kartentyp, Optionen und bestehende Gerätezuordnungen bleiben kompatibel. Sicherheitsprüfungen verwerfen
-unzulässige Bild-URLs und CSS-Werte; Details stehen im [Changelog](CHANGELOG.md).
+Die Major-Version bedeutet **nicht automatisch Breaking Changes**, Kartentyp und Optionen bleiben kompatibel. Details
+stehen im [Changelog](CHANGELOG.md).
 
 ### Manuell
 
@@ -281,36 +280,13 @@ Wie `devices[]` (ohne `device`), dazu:
   `switch_port` am Gerät eintragen.
 - **Geräte stehen nebeneinander statt im Baum:** `parent` setzen oder Network+ installieren.
 - **Neue Version wird nicht geladen:** In HACS *Informationen aktualisieren*, herunterladen, Browser- bzw. App-Cache leeren.
-  Die geladene Version steht in der Browser-Konsole (`UNIFI-NETWORK-CARD 1.0.0`).
-- **Dashboard springt beim Scrollen** (vor allem iPad/Companion App): auf 0.17.6 oder neuer aktualisieren. Tritt es
-  trotzdem auf, hilft `animate_flows: false`.
+  Die geladene Version steht in der Browser-Konsole (`UNIFI-NETWORK-CARD 1.0.1`).
+- **Dashboard springt beim Scrollen** (vor allem iPad/Companion App): `animate_flows: false` setzen.
 
 ## Anforderungen
 
 - Home Assistant mit der UniFi-Integration und/oder UniFi Network+
 - Eine aktuelle Home-Assistant-Version (der Editor nutzt den `object`-Selektor mit `fields`)
-
-## Entwicklung
-
-```bash
-npm ci
-npm test          # Unit-Tests (node:test)
-npm run build     # -> dist/unifi-network-card.js
-npm run watch
-```
-
-Quellcode in `src/` (Karte, Editor, Styles, Übersetzungen, Hilfsfunktionen), Tests in `test/`.
-
-### Release
-
-1. Änderungen unter einer neuen Überschrift `## x.y.z – JJJJ-MM-TT` in die [CHANGELOG.md](CHANGELOG.md) schreiben und
-   `version` in `package.json` und `package-lock.json` sowie die Versionsangaben in Quelle und README anpassen.
-   `RELEASE_NOTES_<Version>.md` aus demselben Changelog-Abschnitt erzeugen.
-2. *Actions → Release → Run workflow* mit der Version starten oder einen Tag `vx.y.z` pushen.
-
-Der Workflow testet, baut, legt das GitHub-Release mit `unifi-network-card.js` an (diese Datei lädt HACS) und übernimmt
-den passenden Abschnitt aus dem Changelog als Release-Text. Fehlt er, bricht der Release ab. Versionen mit Suffix
-(`1.3.0-beta.1`) werden als Pre-release veröffentlicht.
 
 ## Lizenz
 
