@@ -5,7 +5,7 @@ Alle sichtbaren Änderungen an der UniFi Card. Neueste Version oben.
 ## 1.0.1 – 2026-10-27
 
 - Aufräumarbeiten ohne Funktionsänderung: doppelten Code im Karten- und Editor-Quelltext zusammengeführt, ungenutzte Hilfsfunktionen und Variablen entfernt. Konfiguration und Verhalten bleiben unverändert.
-- Repository verschlankt: nicht benötigte Logo-Dateien und die Pflicht-Datei `RELEASE_NOTES_<Version>.md` entfernt (der Release-Text kommt aus diesem Changelog), Entwicklungs- und Release-Abschnitte aus der README genommen, Security-Review gekürzt.
+- Repository verschlankt: nicht benötigte Logo-Dateien und die Pflicht-Datei `RELEASE_NOTES_<Version>.md` entfernt (der Release-Text kommt aus diesem Changelog), Entwicklungs- und Release-Abschnitte aus der README genommen.
 
 ## 1.0.0 – 2026-10-24
 
