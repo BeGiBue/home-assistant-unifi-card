@@ -133,8 +133,15 @@ test("externe Geraete erscheinen am gewaehlten Switch mit Status und PoE", () =>
   assert.match(html, /<ha-icon icon="mdi:nas">/);
   assert.match(html, /tile on ext/);
   assert.match(html, /4,4 W/); // PoE-Leistung von Port 6 des Switches
-  assert.match(html, /tile off ext/); // Drucker: Status-Entitaet existiert nicht -> offline
-  assert.match(html, /4\/5 Online/);
+  // Drucker: Status-Entitaet existiert nicht -> offline; nicht verbundene Fremdgeräte sind ausgeblendet
+  assert.doesNotMatch(html, /Drucker/);
+  assert.doesNotMatch(html, /tile off ext/);
+  assert.match(html, /4\/4 Online/);
+  const all = new Card();
+  all.setConfig({ show_offline_external: true, external_devices: [{ name: "Drucker", parent: "sw", entity: "binary_sensor.printer" }] });
+  all.hass = withClients;
+  assert.match(all.shadowRoot.innerHTML, /tile off ext/);
+  assert.match(all.shadowRoot.innerHTML, /3\/4 Online/);
 });
 
 const lagHass = {
@@ -288,8 +295,8 @@ test("Verbindungslinien tragen den Online-Status (verbunden / offline)", () => {
   card.setConfig({});
   card.hass = { ...hass, states: withIds({ ...hass.states, "device_tracker.ap": state("not_home") }) };
   const html = card.shadowRoot.innerHTML;
-  assert.match(html, /<li class="on">/);
-  assert.match(html, /<li class="off">/);
+  assert.match(html, /<li class="on[" ]/);
+  assert.match(html, /<li class="off[" ]/);
   assert.match(html, /class="stem on"/);
   assert.match(html, /class="stem off"/);
   assert.match(html, /<ul class="off">/); // Switch -> nur der (offline) AP darunter
@@ -472,7 +479,7 @@ test("Externes Gerät mit veralteter Status-Entität bleibt online, wenn der Por
   assert.doesNotMatch(card.shadowRoot.innerHTML, /kein Link/);
   // Port nicht aktiv (Link-Speed nicht verfügbar): weiter offline
   const off = new Card();
-  off.setConfig({ external_devices: [{ name: "NAS", parent: "sw", switch_port: "6", entity: "device_tracker.nas" }] });
+  off.setConfig({ show_offline_external: true, external_devices: [{ name: "NAS", parent: "sw", switch_port: "6", entity: "device_tracker.nas" }] });
   off.hass = { ...h, states: withIds({ ...h.states, "sensor.sw_port_6_link_speed": state("unavailable", { friendly_name: "Switch Keller Port 6 Link Speed" }) }) };
   assert.match(off.shadowRoot.innerHTML, /tile off ext/);
 });
@@ -489,7 +496,7 @@ test("Externes Gerät ohne Status-Entität: Link-Speed-Sensor des Ports ist der 
   up.hass = mk("1000");
   assert.match(up.shadowRoot.innerHTML, /tile on ext/);
   const down = new Card();
-  down.setConfig(cfg);
+  down.setConfig({ ...cfg, show_offline_external: true });
   down.hass = mk("0");
   assert.match(down.shadowRoot.innerHTML, /tile off ext/);
 });
@@ -578,4 +585,39 @@ test("untrusted Konfiguration und Entity-Daten bleiben in HTML escaped", () => {
   unsafe.setConfig({ devices: [{ device: "ap", image: "javascript:alert(1)" }], poe_color: "#fff;background-image:url(https://example.invalid/track)" });
   unsafe.hass = hass;
   assert.doesNotMatch(unsafe.shadowRoot.innerHTML, /javascript:|example\.invalid/);
+});
+
+// Klassen der Geschwister unter dem Switch in Reihenfolge
+const siblingClasses = (html) => [...html.matchAll(/<li class="([^"]*)">/g)].map((m) => m[1]).slice(2);
+
+test("Waagerechte Leiste bleibt über ein ausgegrautes Gerät hinweg schwarz, nur dessen Abzweig ist grau", () => {
+  const h = {
+    ...hass,
+    devices: {
+      ...hass.devices,
+      ap2: { id: "ap2", name: "AP B", manufacturer: "Ubiquiti", model: "U6-Lite", via_device_id: "sw" },
+      ap3: { id: "ap3", name: "AP C", manufacturer: "Ubiquiti", model: "U6-Lite", via_device_id: "sw" },
+    },
+    entities: {
+      ...hass.entities,
+      "device_tracker.ap2": ent("device_tracker.ap2", "ap2"),
+      "device_tracker.ap3": ent("device_tracker.ap3", "ap3"),
+    },
+  };
+  const render = (states) => {
+    const card = new Card();
+    card.setConfig({ show_flows: false });
+    card.hass = { ...h, states: withIds({ ...hass.states, ...states }) };
+    return card.shadowRoot.innerHTML;
+  };
+  // AP <Büro> | AP B (offline) | AP C: Leiste durchgehend schwarz, AP B grau
+  let html = render({ "device_tracker.ap": state("home"), "device_tracker.ap2": state("not_home"), "device_tracker.ap3": state("home") });
+  assert.deepEqual(siblingClasses(html), ["on br", "off bl br", "on bl"]);
+  assert.match(html, /class="stem off"/);
+  // Nur das linke Gerät online: Leiste von ihm bis zur Mitte schwarz, rechts davon grau
+  html = render({ "device_tracker.ap": state("home"), "device_tracker.ap2": state("not_home"), "device_tracker.ap3": state("not_home") });
+  assert.deepEqual(siblingClasses(html), ["on br", "off bl", "off"]);
+  // Niemand online: alles grau
+  html = render({ "device_tracker.ap": state("not_home"), "device_tracker.ap2": state("not_home"), "device_tracker.ap3": state("not_home") });
+  assert.deepEqual(siblingClasses(html), ["off", "off", "off"]);
 });
