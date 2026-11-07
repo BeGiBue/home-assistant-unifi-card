@@ -229,7 +229,8 @@ Externe Bilder lädt der Browser direkt vom angegebenen Host. Für rein lokale N
 | `config_entry` | – | Nur Geräte dieses UniFi-Konfigurationseintrags |
 | `managed` | `false` | Nur Geräte und Sensoren aus den Einträgen zeigen (setzt die automatische Erkennung) |
 | `auto_parent` | `true` | Hierarchie per Faustregel ergänzen, wenn nichts anderes bekannt ist |
-| `show_offline` | `true` | Offline-Geräte anzeigen |
+| `show_offline` | `true` | Offline-UniFi-Geräte ausgegraut anzeigen |
+| `show_offline_external` | `false` | Nicht verbundene Fremdgeräte (`external_devices`) anzeigen; sonst ausgeblendet |
 | `show_flows` | `true` | PoE- und Datenwerte an den Verbindungen |
 | `animate_flows` | `true` | Linien animieren (respektiert „Bewegung reduzieren“) |
 | `show_summary` | `true` | Zusammenfassung im Kopf (Geräte online, PoE gesamt, Download/Upload am Gateway) |

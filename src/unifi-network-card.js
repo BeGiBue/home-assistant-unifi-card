@@ -171,6 +171,7 @@ class UnifiNetworkCard extends HTMLElement {
     this._config = {
       layout: "tree",
       show_offline: true,
+      show_offline_external: false,
       show_flows: true,
       animate_flows: true,
       show_summary: true,
@@ -573,8 +574,12 @@ class UnifiNetworkCard extends HTMLElement {
       d.poeUsed = used[d.id] || 0;
       d.poeBudget = Number(d.cfg?.poe_budget) || 0;
     });
-    const visible = items.filter((d) => cfg.show_offline || d.online);
-    const real = items.filter((d) => !d.secondary); // Zweitverbindungen nicht doppelt zählen
+    // Nicht verbundene Fremdgeräte (keine UniFi-Hardware) gehören nicht zur Topologie:
+    // standardmäßig ausblenden. UniFi-Geräte bleiben ausgegraut sichtbar (show_offline).
+    const shown = (d) => d.online || (d.external ? cfg.show_offline_external === true : cfg.show_offline);
+    const visible = items.filter(shown);
+    // Zweitverbindungen nicht doppelt zählen; ausgeblendete Geräte zählen mit (z. B. 9/10 Online)
+    const real = items.filter((d) => !d.secondary);
     const summary = {
       online: real.filter((d) => d.online).length,
       total: real.length,
@@ -708,9 +713,20 @@ class UnifiNetworkCard extends HTMLElement {
 
   _treeHtml(items, locale, t) {
     const { roots, children } = buildTree(items);
-    const node = (d, isRoot) => `
-      <li class="${d.online ? "on" : "off"}">${isRoot ? "" : this._link(d, locale, t)}${this._tile(d, locale, t)}
-        ${children[d.id] ? `<ul class="${children[d.id].some((c) => c.online) ? "on" : "off"}">${children[d.id].map((c) => node(c, false)).join("")}</ul>` : ""}
+    // Waagerechte Leiste: schwarz von der Mitte (Abzweig des Elternteils) bis zum äußersten
+    // verbundenen Geschwister je Seite, auch über ausgegraute Geräte hinweg. Grau bleibt nur
+    // der senkrechte Abzweig des offline-Geräts. Positionen in Kachel-Einheiten (gleiche Breite).
+    const barClass = (list, i) => {
+      const on = list.flatMap((c, k) => (c.online ? [k] : []));
+      if (!on.length) return "";
+      const mid = (list.length - 1) / 2;
+      const lo = Math.min(on[0], mid);
+      const hi = Math.max(on[on.length - 1], mid);
+      return `${i - 0.5 >= lo && i <= hi ? " bl" : ""}${i >= lo && i + 0.5 <= hi ? " br" : ""}`;
+    };
+    const node = (d, isRoot, cls = "") => `
+      <li class="${d.online ? "on" : "off"}${cls}">${isRoot ? "" : this._link(d, locale, t)}${this._tile(d, locale, t)}
+        ${children[d.id] ? `<ul class="${children[d.id].some((c) => c.online) ? "on" : "off"}">${children[d.id].map((c, i, list) => node(c, false, barClass(list, i))).join("")}</ul>` : ""}
       </li>`;
     return `<ul class="tree root">${roots.map((d) => node(d, true)).join("")}</ul>`;
   }
