@@ -2,6 +2,11 @@
 
 Alle sichtbaren Änderungen an der UniFi Card. Neueste Version oben.
 
+## 1.2.0 – 2026-11-07
+
+- The card description in the card picker now follows the Home Assistant language (English by default, German for German). Card and editor were already bilingual. / Die Beschreibung im Kartenauswahl-Dialog folgt jetzt der Sprache von Home Assistant (Standard Englisch, Deutsch bei deutscher Oberfläche). Karte und Editor waren bereits zweisprachig.
+- README shortened and available in English and German. / README gekürzt und auf Englisch und Deutsch verfügbar.
+
 ## 1.1.0 – 2026-11-07
 
 - Fix: Auf iPad und iPhone sprang das Dashboard regelmäßig zur Karte. Die Karte baute bei jeder Aktualisierung auch ihre Hülle (`ha-card`) neu auf und war beim anschließenden Messen kurz nur rund 20 px hoch; Safari kürzte dabei die Scrollposition. Die Hülle bleibt jetzt bestehen, und die Dichte-Messung hält die Kartenhöhe fest.

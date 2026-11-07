@@ -111,6 +111,7 @@ const STRINGS = {
     e_wan_down: "WAN Download (Sensor, leer = automatisch)",
     e_wan_up: "WAN Upload (Sensor, leer = automatisch)",
     e_restart_entity: "Neustart-Button (Entität, optional)",
+    card_description: "UniFi-Topologie mit Geräte-Bildern sowie Daten- und PoE-Flüssen.",
   },
   en: {
     title: "UniFi Network",
@@ -223,6 +224,7 @@ const STRINGS = {
     e_wan_down: "WAN download (sensor, empty = automatic)",
     e_wan_up: "WAN upload (sensor, empty = automatic)",
     e_restart_entity: "Restart button (entity, optional)",
+    card_description: "UniFi topology with device images and data and PoE flows.",
   },
 };
 

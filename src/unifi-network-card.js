@@ -966,7 +966,7 @@ if (!window.customCards.some((c) => c.type === "unifi-network-card")) {
   window.customCards.push({
     type: "unifi-network-card",
     name: "UniFi Network Card",
-    description: "UniFi-Topologie mit Geräte-Bildern sowie Daten- und PoE-Flüssen.",
+    description: localize(globalThis.document?.querySelector?.("home-assistant")?.hass)("card_description"),
     preview: false,
     documentationURL: "https://github.com/BeGiBue/home-assistant-unifi-card",
   });
