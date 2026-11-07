@@ -2,7 +2,7 @@
 
 Alle sichtbaren Änderungen an der UniFi Card. Neueste Version oben.
 
-## 1.1.0 – 2026-11-07
+## Unreleased
 
 - Die waagerechte Verbindungsleiste bleibt bis zum äußersten verbundenen Gerät schwarz, auch wenn dazwischen ein Gerät offline ist. Grau ist nur noch der senkrechte Abzweig zum Offline-Gerät.
 - Nicht verbundene Fremdgeräte (`external_devices`, keine UniFi-Hardware) werden ausgeblendet, zählen in der Zusammenfassung aber weiter mit (z. B. „9/10 Online“). Offline-UniFi-Geräte bleiben ausgegraut sichtbar. Die neue Option `show_offline_external: true` zeigt Fremdgeräte wie bisher an.
