@@ -621,3 +621,19 @@ test("Waagerechte Leiste bleibt über ein ausgegrautes Gerät hinweg schwarz, nu
   html = render({ "device_tracker.ap": state("not_home"), "device_tracker.ap2": state("not_home"), "device_tracker.ap3": state("not_home") });
   assert.deepEqual(siblingClasses(html), ["off", "off", "off"]);
 });
+
+test("Aktualisierung behält die ha-card-Hülle und ersetzt nur deren Inhalt (kein Sprung in Safari)", () => {
+  const card = new Card();
+  card.setConfig({ devices: [{ device: "ap", switch_port: 5 }] });
+  card.hass = liveHass("12");
+  assert.match(card.shadowRoot.innerHTML, /<ha-card/);
+  // Erstes Rendern hat die Hülle angelegt; ab jetzt eine echte Hülle simulieren
+  const shell = { dataset: {}, innerHTML: "", className: "", setAttribute(k, v) { this[k] = v; }, querySelector: () => null };
+  const root = card.shadowRoot;
+  const before = root.innerHTML;
+  root.querySelector = (sel) => (sel === "ha-card" ? shell : null);
+  card.hass = liveHass("20");
+  assert.equal(root.innerHTML, before, "Shadow-Root wird nicht neu aufgebaut");
+  assert.match(shell.innerHTML, /20 Mb\/s|20,0 Mb\/s/);
+  assert.equal(shell.dataset.d, "normal");
+});
