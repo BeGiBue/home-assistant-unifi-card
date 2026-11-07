@@ -578,8 +578,8 @@ class UnifiNetworkCard extends HTMLElement {
     // standardmäßig ausblenden. UniFi-Geräte bleiben ausgegraut sichtbar (show_offline).
     const shown = (d) => d.online || (d.external ? cfg.show_offline_external === true : cfg.show_offline);
     const visible = items.filter(shown);
-    // Zweitverbindungen nicht doppelt zählen; ausgeblendete Fremdgeräte zählen nicht mit
-    const real = items.filter((d) => !d.secondary && (d.online || !d.external || cfg.show_offline_external === true));
+    // Zweitverbindungen nicht doppelt zählen; ausgeblendete Geräte zählen mit (z. B. 9/10 Online)
+    const real = items.filter((d) => !d.secondary);
     const summary = {
       online: real.filter((d) => d.online).length,
       total: real.length,

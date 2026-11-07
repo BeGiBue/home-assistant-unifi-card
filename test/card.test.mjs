@@ -136,7 +136,7 @@ test("externe Geraete erscheinen am gewaehlten Switch mit Status und PoE", () =>
   // Drucker: Status-Entitaet existiert nicht -> offline; nicht verbundene Fremdgeräte sind ausgeblendet
   assert.doesNotMatch(html, /Drucker/);
   assert.doesNotMatch(html, /tile off ext/);
-  assert.match(html, /4\/4 Online/);
+  assert.match(html, /4\/5 Online/); // Drucker ausgeblendet, aber mitgezählt
   const all = new Card();
   all.setConfig({ show_offline_external: true, external_devices: [{ name: "Drucker", parent: "sw", entity: "binary_sensor.printer" }] });
   all.hass = withClients;
