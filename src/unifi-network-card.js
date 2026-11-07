@@ -141,6 +141,9 @@ class UnifiNetworkCard extends HTMLElement {
         const tileW = { normal: 165, compact: 96 };
         const inner = avail - 24; // Kartenrand
         let chosen = "list";
+        // Während der Probe-Umschaltung nicht schrumpfen: sonst kürzt Safari die Scrollposition
+        const lock = this.style?.minHeight;
+        if (this.style && this.offsetHeight) this.style.minHeight = `${this.offsetHeight}px`;
         for (const l of levels) {
           card.dataset.d = l;
           const measured = tree.scrollWidth <= tree.clientWidth + 1;
@@ -150,6 +153,7 @@ class UnifiNetworkCard extends HTMLElement {
             break;
           }
         }
+        if (this.style) this.style.minHeight = lock || "";
         this._density = chosen;
       }
     }
@@ -831,21 +835,41 @@ class UnifiNetworkCard extends HTMLElement {
       `--unifi-up:${resolveColor(cfg.up_color, "var(--success-color, #4caf50)")}`,
     ].join(";");
 
-    this.shadowRoot.innerHTML = `
+    const cls = cfg.animate_flows ? "anim" : "";
+    const dens = cfg.layout === "grid" ? "normal" : this._density || "normal";
+    const content = `${header}${body}${this._wanHtml(model?.wan, locale, t)}${this._latencyHtml(model?.latency, locale, t)}${legend}${this._confirmHtml(t)}`;
+    // Breite vor dem Austausch lesen, solange die Karte noch ihre volle Höhe hat
+    const width = Math.round(this.clientWidth || 0);
+    // Die Hülle (ha-card) bleibt bestehen, nur ihr Inhalt wird ersetzt. Ein neues ha-card zeigt seinen
+    // Inhalt erst eine Mikrotask später an; wird in dieser Lücke gemessen, ist die Karte nur ~20 px hoch.
+    // Safari (iPad/iPhone) kürzt dabei die Scrollposition, und das Dashboard springt zur Karte.
+    let card = this.shadowRoot.querySelector?.("ha-card");
+    const fresh = !card;
+    if (card) {
+      card.className = cls;
+      card.dataset.d = dens;
+      card.setAttribute("style", vars);
+      card.innerHTML = content;
+    } else {
+      this.shadowRoot.innerHTML = `
       <style>${styles}</style>
-      <ha-card class="${cfg.animate_flows ? "anim" : ""}" data-d="${cfg.layout === "grid" ? "normal" : this._density || "normal"}" style="${esc(vars)}">
-        ${header}${body}${this._wanHtml(model?.wan, locale, t)}${this._latencyHtml(model?.latency, locale, t)}${legend}${this._confirmHtml(t)}
+      <ha-card class="${cls}" data-d="${dens}" style="${esc(vars)}">
+        ${content}
       </ha-card>`;
+      card = this.shadowRoot.querySelector?.("ha-card");
+    }
 
     if (cfg.layout !== "grid") {
       // Die Dichte-Messung schaltet testweise zwischen den Stufen um und ändert dabei die Kartenhöhe.
       // Das nur bei geänderter Breite/Struktur tun; bei reinen Wertänderungen genügt ein Überlauf-Check.
-      const fitKey = [Math.round(this.clientWidth || 0), cfg.density, model ? model.items.map((d) => d.id).join(",") : ""].join("|");
-      const tree = this.shadowRoot.querySelector?.("ul.tree.root");
+      const fitKey = [width, cfg.density, model ? model.items.map((d) => d.id).join(",") : ""].join("|");
+      const tree = fresh ? null : this.shadowRoot.querySelector?.("ul.tree.root");
       const overflow = !!tree && this._density !== "list" && tree.scrollWidth > tree.clientWidth + 1;
       if (fitKey !== this._fitKey || overflow) {
         this._fitKey = fitKey;
-        this._fit();
+        // Neue Hülle: erst messen, wenn ha-card seinen Inhalt anzeigt
+        if (fresh && card?.updateComplete) Promise.resolve(card.updateComplete).then(() => this._fit());
+        else this._fit();
       }
     }
 

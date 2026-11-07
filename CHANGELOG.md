@@ -4,6 +4,7 @@ Alle sichtbaren Änderungen an der UniFi Card. Neueste Version oben.
 
 ## Unreleased
 
+- Fix: Auf iPad und iPhone sprang das Dashboard regelmäßig zur Karte. Die Karte baute bei jeder Aktualisierung auch ihre Hülle (`ha-card`) neu auf und war beim anschließenden Messen kurz nur rund 20 px hoch; Safari kürzte dabei die Scrollposition. Die Hülle bleibt jetzt bestehen, und die Dichte-Messung hält die Kartenhöhe fest.
 - Die waagerechte Verbindungsleiste bleibt bis zum äußersten verbundenen Gerät schwarz, auch wenn dazwischen ein Gerät offline ist. Grau ist nur noch der senkrechte Abzweig zum Offline-Gerät.
 - Nicht verbundene Fremdgeräte (`external_devices`, keine UniFi-Hardware) werden ausgeblendet, zählen in der Zusammenfassung aber weiter mit (z. B. „9/10 Online“). Offline-UniFi-Geräte bleiben ausgegraut sichtbar. Die neue Option `show_offline_external: true` zeigt Fremdgeräte wie bisher an.
 
