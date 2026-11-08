@@ -29,6 +29,9 @@ import "./unifi-network-card-editor.js";
 
 /* global __VERSION__ */
 const VERSION = typeof __VERSION__ !== "undefined" ? __VERSION__ : "1.1.0";
+// Breitenreserve (px), bevor die automatische Dichte wieder auf eine weniger dichte Stufe wechselt. Breiter als jede
+// klassische Scrollleiste (ca. 15–17 px), wie das ±12-px-Band der Schriftstufen in den anderen Cards
+const FIT_HYSTERESIS = 24;
 
 const ICONS = {
   gateway: '<rect x="6" y="22" width="52" height="20" rx="4"/><circle cx="16" cy="32" r="2.4" fill="currentColor"/><circle cx="24" cy="32" r="2.4" fill="currentColor"/><path d="M38 28h14M38 36h14"/>',
@@ -144,15 +147,23 @@ class UnifiNetworkCard extends HTMLElement {
         // Während der Probe-Umschaltung nicht schrumpfen: sonst kürzt Safari die Scrollposition
         const lock = this.style?.minHeight;
         if (this.style && this.offsetHeight) this.style.minHeight = `${this.offsetHeight}px`;
-        for (const l of levels) {
+        // Hysterese: Eine weniger dichte Stufe als die aktuelle wird nur gewählt, wenn sie auch mit FIT_HYSTERESIS px
+        // weniger Platz noch passt. Sonst kann eine ein- und ausblendende Scrollleiste zwischen kompakt und normal
+        // hin- und herschalten (normal ist höher, die Höhe schwingt mit). Schmaler wird es weiterhin sofort dichter.
+        const cur = levels.indexOf(this._density);
+        const margin = tree.style?.marginRight;
+        for (const [i, l] of levels.entries()) {
+          const reserve = cur >= 0 && i < cur ? FIT_HYSTERESIS : 0;
           card.dataset.d = l;
+          if (tree.style) tree.style.marginRight = reserve ? `${reserve}px` : margin || "";
           const measured = tree.scrollWidth <= tree.clientWidth + 1;
-          const estimated = l === "list" || widest * tileW[l] <= inner;
+          const estimated = l === "list" || widest * tileW[l] + reserve <= inner;
           if (measured && estimated) {
             chosen = l;
             break;
           }
         }
+        if (tree.style) tree.style.marginRight = margin || "";
         if (this.style) this.style.minHeight = lock || "";
         this._density = chosen;
       }
