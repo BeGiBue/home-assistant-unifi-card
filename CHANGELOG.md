@@ -4,7 +4,7 @@ Alle sichtbaren Änderungen an der UniFi Card. Neueste Version oben.
 
 ## 1.2.1 – 2026-11-08
 
-- Fixed: with automatic density the card could switch back and forth between compact and normal (and jitter in height) when its width was close to the threshold and the page scrollbar appeared and disappeared. After the card had to switch to a denser level, it now only returns once its width is at least 12 px above the threshold of the less dense level. / Behoben: Mit automatischer Dichte konnte die Karte zwischen kompakt und normal hin- und herschalten (und in der Höhe zappeln), wenn ihre Breite knapp an der Schwelle lag und die Scrollleiste der Seite ein- und ausgeblendet wurde. Nachdem die Karte auf eine dichtere Stufe wechseln musste, kehrt sie jetzt erst zurück, wenn ihre Breite mindestens 12 px über der Schwelle der weniger dichten Stufe liegt.
+- Fixed: with automatic density the card could switch back and forth between compact and normal (and jitter in height) when its width was close to the threshold and the page scrollbar appeared and disappeared. After the card had to switch to a denser level, it now only returns once the less dense level fits with at least 12 px to spare. / Behoben: Mit automatischer Dichte konnte die Karte zwischen kompakt und normal hin- und herschalten (und in der Höhe zappeln), wenn ihre Breite knapp an der Schwelle lag und die Scrollleiste der Seite ein- und ausgeblendet wurde. Nachdem die Karte auf eine dichtere Stufe wechseln musste, kehrt sie jetzt erst zurück, wenn die weniger dichte Stufe mit mindestens 12 px Reserve passt.
 
 ## 1.2.0 – 2026-11-07
 
