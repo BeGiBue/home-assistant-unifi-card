@@ -637,3 +637,34 @@ test("Aktualisierung behält die ha-card-Hülle und ersetzt nur deren Inhalt (ke
   assert.match(shell.innerHTML, /20 Mb\/s|20,0 Mb\/s/);
   assert.equal(shell.dataset.d, "normal");
 });
+
+test("Dichte-Automatik kippt bei wenigen Pixeln Breitenänderung nicht zwischen kompakt und normal hin und her", () => {
+  const card = new Card();
+  card.setConfig({ devices: [{ device: "ap", switch_port: 5 }] });
+  // Attrappe: Baum mit drei Kacheln nebeneinander; normal braucht 3 × 165 px, kompakt 3 × 96 px (+ 24 px Rand)
+  let width = 0;
+  const need = { normal: 3 * 165 + 24, compact: 3 * 96 + 24, list: 0 };
+  const shell = { dataset: {} };
+  const tree = {
+    get clientWidth() { return width; },
+    get scrollWidth() { return Math.max(width, need[shell.dataset.d]); },
+    querySelectorAll: () => [],
+  };
+  tree.querySelectorAll = () => [1, 2, 3].map(() => ({ parentElement: tree }));
+  Object.defineProperty(shell, "clientWidth", { get: () => width });
+  shell.querySelector = (sel) => (sel === "ul.tree.root" ? tree : null);
+  card.shadowRoot.querySelector = (sel) => (sel === "ha-card" ? shell : null);
+  const at = (w) => { width = w; card._fit(); return card._density; };
+
+  // Schwelle für normal: 519 px
+  assert.equal(at(530), "normal");
+  assert.equal(at(515), "compact", "zu schmal: sofort dichter");
+  assert.equal(at(530), "compact", "Scrollleiste weg (+15 px): bleibt kompakt");
+  assert.equal(at(515), "compact");
+  assert.equal(at(522), "compact");
+  assert.equal(at(531), "normal", "erst 12 px über der Schwelle wieder normal");
+  assert.equal(at(500), "compact", "schmaler wird immer sofort dichter");
+  assert.equal(at(1000), "normal", "großer Breitensprung: sofort normal");
+  assert.equal(at(300), "list");
+  assert.equal(at(1000), "normal", "auch aus der Liste direkt zurück");
+});

@@ -29,6 +29,8 @@ import "./unifi-network-card-editor.js";
 
 /* global __VERSION__ */
 const VERSION = typeof __VERSION__ !== "undefined" ? __VERSION__ : "1.1.0";
+// Breitenreserve (px), bevor die automatische Dichte wieder auf eine weniger dichte Stufe wechselt
+const FIT_HYSTERESIS = 12;
 
 const ICONS = {
   gateway: '<rect x="6" y="22" width="52" height="20" rx="4"/><circle cx="16" cy="32" r="2.4" fill="currentColor"/><circle cx="24" cy="32" r="2.4" fill="currentColor"/><path d="M38 28h14M38 36h14"/>',
@@ -144,6 +146,8 @@ class UnifiNetworkCard extends HTMLElement {
         // Während der Probe-Umschaltung nicht schrumpfen: sonst kürzt Safari die Scrollposition
         const lock = this.style?.minHeight;
         if (this.style && this.offsetHeight) this.style.minHeight = `${this.offsetHeight}px`;
+        // Für jede zu breite Stufe: Kartenbreite, ab der sie passen würde (Schwelle für die Hysterese)
+        const need = {};
         for (const l of levels) {
           card.dataset.d = l;
           const measured = tree.scrollWidth <= tree.clientWidth + 1;
@@ -152,8 +156,26 @@ class UnifiNetworkCard extends HTMLElement {
             chosen = l;
             break;
           }
+          need[l] = avail + Math.max(0, tree.scrollWidth - tree.clientWidth, l === "list" ? 0 : widest * tileW[l] - inner);
         }
         if (this.style) this.style.minHeight = lock || "";
+        // Hysterese wie bei einer Schriftstufe: Musste die Karte eine Stufe aus Platzmangel verlassen, wird diese
+        // erst wieder gewählt, wenn die Breite mindestens FIT_HYSTERESIS px über ihrer Schwelle liegt. Sonst kann eine
+        // ein- und ausblendende Scrollleiste zwischen kompakt und normal hin- und herschalten (normal ist höher,
+        // die Höhe schwingt mit).
+        const structure = `${widest}|${perLevel[0] || 0}|${tree.querySelectorAll("li").length}`;
+        if (structure !== this._fitStructure) {
+          this._fitStructure = structure;
+          this._needAt = {};
+        }
+        const prev = levels.indexOf(this._density);
+        let next = levels.indexOf(chosen);
+        if (prev >= 0 && next < prev) {
+          while (next < prev && avail < (this._needAt[levels[next]] ?? -Infinity) + FIT_HYSTERESIS) next++;
+          chosen = levels[next];
+        } else if (prev >= 0 && next > prev) {
+          for (let k = prev; k < next; k++) this._needAt[levels[k]] = need[levels[k]];
+        }
         this._density = chosen;
       }
     }
