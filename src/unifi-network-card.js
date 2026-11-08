@@ -146,36 +146,24 @@ class UnifiNetworkCard extends HTMLElement {
         // Während der Probe-Umschaltung nicht schrumpfen: sonst kürzt Safari die Scrollposition
         const lock = this.style?.minHeight;
         if (this.style && this.offsetHeight) this.style.minHeight = `${this.offsetHeight}px`;
-        // Für jede zu breite Stufe: Kartenbreite, ab der sie passen würde (Schwelle für die Hysterese)
-        const need = {};
-        for (const l of levels) {
+        // Hysterese: Eine weniger dichte Stufe als die aktuelle wird nur gewählt, wenn sie auch mit FIT_HYSTERESIS px
+        // weniger Platz noch passt. Sonst kann eine ein- und ausblendende Scrollleiste zwischen kompakt und normal
+        // hin- und herschalten (normal ist höher, die Höhe schwingt mit). Schmaler wird es weiterhin sofort dichter.
+        const cur = levels.indexOf(this._density);
+        const margin = tree.style?.marginRight;
+        for (const [i, l] of levels.entries()) {
+          const reserve = cur >= 0 && i < cur ? FIT_HYSTERESIS : 0;
           card.dataset.d = l;
+          if (tree.style) tree.style.marginRight = reserve ? `${reserve}px` : margin || "";
           const measured = tree.scrollWidth <= tree.clientWidth + 1;
-          const estimated = l === "list" || widest * tileW[l] <= inner;
+          const estimated = l === "list" || widest * tileW[l] + reserve <= inner;
           if (measured && estimated) {
             chosen = l;
             break;
           }
-          need[l] = avail + Math.max(0, tree.scrollWidth - tree.clientWidth, l === "list" ? 0 : widest * tileW[l] - inner);
         }
+        if (tree.style) tree.style.marginRight = margin || "";
         if (this.style) this.style.minHeight = lock || "";
-        // Hysterese wie bei einer Schriftstufe: Musste die Karte eine Stufe aus Platzmangel verlassen, wird diese
-        // erst wieder gewählt, wenn die Breite mindestens FIT_HYSTERESIS px über ihrer Schwelle liegt. Sonst kann eine
-        // ein- und ausblendende Scrollleiste zwischen kompakt und normal hin- und herschalten (normal ist höher,
-        // die Höhe schwingt mit).
-        const structure = `${widest}|${perLevel[0] || 0}|${tree.querySelectorAll("li").length}`;
-        if (structure !== this._fitStructure) {
-          this._fitStructure = structure;
-          this._needAt = {};
-        }
-        const prev = levels.indexOf(this._density);
-        let next = levels.indexOf(chosen);
-        if (prev >= 0 && next < prev) {
-          while (next < prev && avail < (this._needAt[levels[next]] ?? -Infinity) + FIT_HYSTERESIS) next++;
-          chosen = levels[next];
-        } else if (prev >= 0 && next > prev) {
-          for (let k = prev; k < next; k++) this._needAt[levels[k]] = need[levels[k]];
-        }
         this._density = chosen;
       }
     }
