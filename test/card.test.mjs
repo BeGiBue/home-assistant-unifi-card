@@ -660,9 +660,12 @@ test("Dichte-Automatik kippt bei wenigen Pixeln Breitenänderung nicht zwischen 
   assert.equal(at(530), "normal");
   assert.equal(at(515), "compact", "zu schmal: sofort dichter");
   assert.equal(at(530), "compact", "Scrollleiste weg (+15 px): bleibt kompakt");
+  assert.equal(at(519), "compact");
+  assert.equal(at(536), "compact", "breite Scrollleiste (+17 px): bleibt kompakt");
   assert.equal(at(515), "compact");
   assert.equal(at(522), "compact");
-  assert.equal(at(531), "normal", "erst 12 px über der Schwelle wieder normal");
+  assert.equal(at(542), "compact", "auch +23 px über der Schwelle noch kompakt");
+  assert.equal(at(543), "normal", "erst 24 px über der Schwelle wieder normal");
   assert.equal(at(500), "compact", "schmaler wird immer sofort dichter");
   assert.equal(at(1000), "normal", "großer Breitensprung: sofort normal");
   assert.equal(at(300), "list");
