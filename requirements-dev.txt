@@ -1,0 +1,2 @@
+# Nur Browser-Tests und Vorschau; keine HACS-Laufzeitabhängigkeit.
+playwright==1.64.1

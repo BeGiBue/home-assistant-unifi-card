@@ -10,7 +10,7 @@
 
 Home Assistant card that shows your UniFi network as a topology: gateway → switches → access points, cameras and other devices, with PoE power and data rates on every connection.
 
-<img src="https://raw.githubusercontent.com/BeGiBue/home-assistant-unifi-card/main/screenshots/unifi-normal-350-light.png" width="350" alt="UniFi topology with gateway, switch, two access points and a PC, 350 px wide, light theme">
+<img src="https://raw.githubusercontent.com/BeGiBue/home-assistant-unifi-card/main/screenshots/unifi-normal-350-light.png?v=2" width="350" alt="UniFi topology with gateway, switch, two access points and a PC, 350 px wide, light theme">
 
 ### Features
 
@@ -64,7 +64,7 @@ Independent community project, not affiliated with Ubiquiti or Home Assistant. *
 
 Home-Assistant-Karte, die dein UniFi-Netzwerk als Topologie zeigt: Gateway → Switches → Access Points, Kameras und weitere Geräte, mit PoE-Leistung und Datenraten an jeder Verbindung.
 
-<img src="https://raw.githubusercontent.com/BeGiBue/home-assistant-unifi-card/main/screenshots/unifi-normal-350-light.png" width="350" alt="UniFi-Topologie mit Gateway, Switch, zwei Access Points und PC, 350 px breit, helles Theme">
+<img src="https://raw.githubusercontent.com/BeGiBue/home-assistant-unifi-card/main/screenshots/unifi-normal-350-light.png?v=2" width="350" alt="UniFi-Topologie mit Gateway, Switch, zwei Access Points und PC, 350 px breit, helles Theme">
 
 ### Funktionen
 

@@ -2,6 +2,17 @@
 
 Alle sichtbaren Änderungen an der UniFi Card. Neueste Version oben.
 
+## 1.3.0 – 2026-11-11
+
+- New look in line with the NAS, Eaton UPS and TouchKio cards: header with icon and larger title, "online" as a status pill (green, orange when a device is missing), device tiles and history tiles with the shared fill and border, "Internet" and "Ping" with a divider line. The topology, the flows and all values are unchanged. / Neues Aussehen passend zu NAS-, Eaton-UPS- und TouchKio-Card: Kopf mit Symbol und größerem Titel, „Online" als Status-Pill (grün, orange wenn ein Gerät fehlt), Gerätekacheln und Verlaufsfelder mit gemeinsamer Füllung und Rahmen, „Internet" und „Ping" mit Trennlinie. Topologie, Flüsse und alle Werte bleiben unverändert.
+- The card no longer rebuilds its content on every value change. It adjusts only what changed: tiles, flow lines, history and buttons stay in place, so the keyboard focus is kept, flow animations no longer restart every few seconds, device images are not reloaded and an open info window stays put. / Die Karte baut ihren Inhalt nicht mehr bei jeder Wertänderung neu auf. Sie gleicht nur an, was sich geändert hat: Kacheln, Flusslinien, Verlauf und Schaltflächen bleiben bestehen. Dadurch bleibt der Tastaturfokus erhalten, Fluss-Animationen starten nicht mehr alle paar Sekunden neu, Gerätebilder werden nicht neu geladen und ein offenes Info-Fenster bleibt stehen.
+- A device image that cannot be loaded is no longer requested again on every update; the icon is shown instead. / Ein nicht ladbares Gerätebild wird nicht mehr bei jeder Aktualisierung erneut angefordert; stattdessen erscheint das Symbol.
+- Fixed: devices behind an offline switch or gateway got a red status dot even when they were reachable themselves. / Behoben: Geräte hinter einem Switch oder Gateway, der offline ist, bekamen einen roten Statuspunkt, auch wenn sie selbst erreichbar waren.
+- Fixed: the restart icon on a device tile could be drawn as large as the device icon. / Behoben: Das Neustart-Symbol auf einer Gerätekachel konnte so groß wie das Gerätesymbol gezeichnet werden.
+- Visible focus outline on tiles, history tiles, connections and dialog buttons. / Sichtbarer Fokusrahmen auf Kacheln, Verlaufsfeldern, Verbindungen und Dialog-Schaltflächen.
+- Card type, options and entities are unchanged. / Kartentyp, Optionen und Entitäten bleiben unverändert.
+- Browser tests added (no rebuild on value changes, dialogs and actions, layout at several widths). / Browser-Tests ergänzt (kein Neuaufbau bei Wertänderungen, Dialoge und Aktionen, Layout in mehreren Breiten).
+
 ## 1.2.1 – 2026-11-08
 
 - Fixed: with automatic density the card could switch back and forth between compact and normal (and jitter in height) when its width was close to the threshold and the page scrollbar appeared and disappeared. After the card had to switch to a denser level, it now only returns once the less dense level fits with at least 24 px to spare. / Behoben: Mit automatischer Dichte konnte die Karte zwischen kompakt und normal hin- und herschalten (und in der Höhe zappeln), wenn ihre Breite knapp an der Schwelle lag und die Scrollleiste der Seite ein- und ausgeblendet wurde. Nachdem die Karte auf eine dichtere Stufe wechseln musste, kehrt sie jetzt erst zurück, wenn die weniger dichte Stufe mit mindestens 24 px Reserve passt.
