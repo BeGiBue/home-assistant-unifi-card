@@ -27,6 +27,8 @@ import {
 } from "./utils.js";
 import "./unifi-network-card-editor.js";
 
+import { morphInto } from "./morph.js";
+
 /* global __VERSION__ */
 const VERSION = typeof __VERSION__ !== "undefined" ? __VERSION__ : "1.1.0";
 // Breitenreserve (px), bevor die automatische Dichte wieder auf eine weniger dichte Stufe wechselt. Breiter als jede
@@ -58,6 +60,7 @@ class UnifiNetworkCard extends HTMLElement {
     this._devices = [];
     this._sig = "";
     this._density = "normal";
+    this._badImg = new Set();
   }
 
   /**
@@ -209,6 +212,7 @@ class UnifiNetworkCard extends HTMLElement {
     this._devRef = null;
     this._histKey = null;
     this._confirm = null;
+    this._badImg = new Set();
     this._update();
   }
 
@@ -699,7 +703,9 @@ class UnifiNetworkCard extends HTMLElement {
   }
 
   _tile(d, locale, t, inGrid = false) {
-    const img = this._imageUrl(d);
+    const url = this._imageUrl(d);
+    // Bilder, die sich nicht laden ließen, nicht erneut anfordern: gleich das Symbol zeigen
+    const img = url && !this._badImg.has(url) ? url : null;
     const icon = `<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[d.type] || ICONS.other}</svg>`;
     const port = d.flow?.portText ? ` · ${esc(d.flow.portText)}` : "";
     const pct = d.poeBudget ? Math.min(100, (d.poeUsed / d.poeBudget) * 100) : 0;
@@ -828,13 +834,14 @@ class UnifiNetworkCard extends HTMLElement {
 
     // Ohne hass (z. B. beim ersten Rendern im Editor) gibt es noch kein Modell
     const s = model?.summary || { online: 0, total: 0, poe: 0, down: 0, up: 0, hasUplink: false };
-    const pills = [`<span class="pill">${s.online}/${s.total} ${esc(t("online"))}</span>`];
+    // Status-Pill wie in den anderen Cards: grün mit Punkt, orange sobald ein Gerät fehlt
+    const pills = [`<span class="pill ${s.online === s.total ? "ok" : "warn"}"><i class="pdot"></i>${s.online}/${s.total} ${esc(t("online"))}</span>`];
     if (cfg.show_flows && s.poe > 0) pills.push(`<span class="pill">${BOLT} ${esc(formatPower(s.poe, locale))}</span>`);
     if (cfg.show_flows && s.hasUplink) {
       pills.push(`<span class="pill"><b class="ar down">↓</b> ${esc(formatRate(s.down, locale))}</span>`);
       pills.push(`<span class="pill"><b class="ar up">↑</b> ${esc(formatRate(s.up, locale))}</span>`);
     }
-    const header = `<div class="head"><h2>${esc(cfg.title ?? t("title"))}</h2>${cfg.show_summary && model ? `<div class="pills">${pills.join("")}</div>` : ""}</div>`;
+    const header = `<div class="head"><div class="ttl"><span class="hchip"><ha-icon icon="mdi:lan"></ha-icon></span><h2>${esc(cfg.title ?? t("title"))}</h2></div>${cfg.show_summary && model ? `<div class="pills">${pills.join("")}</div>` : ""}</div>`;
     const legend =
       cfg.show_flows && cfg.show_legend && cfg.layout !== "grid"
         ? `<div class="legend"><span><i style="background:var(--unifi-poe)"></i>${esc(t("legend_poe"))}</span><span><i style="background:var(--unifi-down)"></i>${esc(t("legend_down"))}</span><span><i style="background:var(--unifi-up)"></i>${esc(t("legend_up"))}</span></div>`
@@ -860,7 +867,8 @@ class UnifiNetworkCard extends HTMLElement {
       card.className = cls;
       card.dataset.d = dens;
       card.setAttribute("style", vars);
-      card.innerHTML = content;
+      // Angleichen statt ersetzen: unveränderte Elemente bleiben bestehen (Fokus, Animationen, geladene Bilder)
+      morphInto(card, content);
     } else {
       this.shadowRoot.innerHTML = `
       <style>${styles}</style>
@@ -884,86 +892,102 @@ class UnifiNetworkCard extends HTMLElement {
       }
     }
 
-    // Bild-Fallback ohne Inline-Handler
-    this.shadowRoot.querySelectorAll(".img img").forEach((img) => {
-      img.addEventListener("error", () => {
-        img.hidden = true;
-        const fb = img.nextElementSibling;
-        if (fb) fb.hidden = false;
-      });
-    });
+    this._bindCard(card);
+  }
 
+  /**
+   * Ereignisse einmal je Hülle anbinden (Delegation). Der Inhalt wird nur angeglichen, die Elemente
+   * bleiben bestehen; je Element gebundene Handler würden sich sonst bei jeder Aktualisierung verdoppeln.
+   */
+  _bindCard(card) {
+    if (!card?.addEventListener || card.__unifiBound) return;
+    card.__unifiBound = true;
+    const pick = (e, sel) => {
+      const el = e.target?.closest?.(sel);
+      return el && card.contains(el) ? el : null;
+    };
     const moreInfo = (entityId) => {
       if (!entityId) return;
       const ev = new Event("hass-more-info", { bubbles: true, composed: true });
       ev.detail = { entityId };
       this.dispatchEvent(ev);
     };
-    const bind = (el, fn) => {
-      el.addEventListener("click", fn);
-      el.addEventListener("keydown", (e) => {
-        if (e.target === el && (e.key === "Enter" || e.key === " ")) {
-          e.preventDefault();
-          fn(e);
-        }
-      });
-    };
     // Klick auf ein Gerät: kleines Info-Fenster (Status, IP, Betriebszeit, Neustart) statt Sensor-Details
-    this.shadowRoot.querySelectorAll(".tile").forEach((el) =>
-      bind(el, () => {
-        this._confirm = { type: "device", id: el.dataset.id };
-        this._update();
-      })
-    );
-    this.shadowRoot.querySelectorAll(".pg").forEach((el) => bind(el, () => moreInfo(el.dataset.entity)));
-    // Neustart: erst nach Bestätigung wird button.press ausgelöst
-    this.shadowRoot.querySelectorAll(".rs").forEach((el) =>
-      el.addEventListener("click", (e) => {
-        e.stopPropagation();
-        this._confirm = { entity: el.dataset.entity, name: el.dataset.name };
-        this._update();
-      })
-    );
+    const openDevice = (el) => {
+      this._confirm = { type: "device", id: el.dataset.id };
+      this._update();
+    };
     // Klick auf eine Verbindung: PoE ein/aus und PoE-Neustart (Power Cycle) des Ports anbieten
-    this.shadowRoot.querySelectorAll(".link.act").forEach((el) =>
-      bind(el, () => {
-        const d = this._devices.find((x) => x.id === el.dataset.id);
-        const parent = d && this._devices.find((x) => x.id === d.parent);
-        const model = this._lastModel?.items.find((x) => x.id === el.dataset.id);
-        const ctl = model?.poeCtl;
-        if (!d || !ctl) return;
-        this._confirm = {
-          type: "poe",
-          name: d.name,
-          port: [parent?.name, model.flow?.portText].filter(Boolean).join(" · "),
-          switches: ctl.switches,
-          cycles: ctl.cycles,
-        };
-        this._update();
-      })
-    );
-    this.shadowRoot.querySelectorAll(".dlg").forEach((el) =>
-      el.addEventListener("click", (e) => {
+    const openPoe = (el) => {
+      const d = this._devices.find((x) => x.id === el.dataset.id);
+      const parent = d && this._devices.find((x) => x.id === d.parent);
+      const model = this._lastModel?.items.find((x) => x.id === el.dataset.id);
+      const ctl = model?.poeCtl;
+      if (!d || !ctl) return;
+      this._confirm = {
+        type: "poe",
+        name: d.name,
+        port: [parent?.name, model.flow?.portText].filter(Boolean).join(" · "),
+        switches: ctl.switches,
+        cycles: ctl.cycles,
+      };
+      this._update();
+    };
+    const dialogAction = (el) => {
+      const c = this._confirm;
+      const act = el.dataset.act;
+      this._confirm = null;
+      if (act === "dev-restart") this._confirm = { entity: el.dataset.entity, name: el.dataset.name };
+      else if (c && act === "ok") this._hass.callService("button", "press", { entity_id: c.entity });
+      else if (c && act === "poe-cycle") this._hass.callService("button", "press", { entity_id: c.cycles });
+      else if (c && act === "poe-toggle") {
+        const on = c.switches.some((id) => this._hass.states[id]?.state === "on");
+        this._hass.callService("switch", on ? "turn_off" : "turn_on", { entity_id: c.switches });
+      }
+      this._update();
+    };
+
+    card.addEventListener("click", (e) => {
+      let el;
+      if ((el = pick(e, ".dlg [data-act]"))) return dialogAction(el);
+      if ((el = pick(e, ".dlg"))) {
+        // Klick neben das Fenster schließt es; Klicks im Fenster tun nichts weiter
         if (e.target === el) {
           this._confirm = null;
           this._update();
         }
-      })
-    );
-    this.shadowRoot.querySelectorAll(".dlg [data-act]").forEach((el) =>
-      el.addEventListener("click", () => {
-        const c = this._confirm;
-        const act = el.dataset.act;
-        this._confirm = null;
-        if (act === "dev-restart") this._confirm = { entity: el.dataset.entity, name: el.dataset.name };
-        else if (c && act === "ok") this._hass.callService("button", "press", { entity_id: c.entity });
-        else if (c && act === "poe-cycle") this._hass.callService("button", "press", { entity_id: c.cycles });
-        else if (c && act === "poe-toggle") {
-          const on = c.switches.some((id) => this._hass.states[id]?.state === "on");
-          this._hass.callService("switch", on ? "turn_off" : "turn_on", { entity_id: c.switches });
-        }
-        this._update();
-      })
+        return;
+      }
+      // Neustart: erst nach Bestätigung wird button.press ausgelöst
+      if ((el = pick(e, ".rs"))) {
+        this._confirm = { entity: el.dataset.entity, name: el.dataset.name };
+        return this._update();
+      }
+      if ((el = pick(e, ".link.act"))) return openPoe(el);
+      if ((el = pick(e, ".tile"))) return openDevice(el);
+      if ((el = pick(e, ".pg"))) return moreInfo(el.dataset.entity);
+    });
+    card.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      const el = e.target;
+      if (!el?.matches?.(".tile, .pg, .link.act") || !card.contains(el)) return;
+      e.preventDefault();
+      if (el.matches(".link.act")) openPoe(el);
+      else if (el.matches(".tile")) openDevice(el);
+      else moreInfo(el.dataset.entity);
+    });
+    // Bild-Fallback ohne Inline-Handler ("error" steigt nicht auf, daher in der Capture-Phase)
+    card.addEventListener(
+      "error",
+      (e) => {
+        const img = e.target;
+        if (img?.tagName !== "IMG" || !img.closest?.(".img")) return;
+        this._badImg.add(img.getAttribute("src"));
+        img.hidden = true;
+        const fb = img.nextElementSibling;
+        if (fb) fb.hidden = false;
+      },
+      true
     );
   }
 }
