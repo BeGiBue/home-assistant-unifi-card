@@ -57,7 +57,8 @@ export const styles = `
   .img img { width: 100%; height: 100%; object-fit: contain; }
   .img svg, .fb { width: 100%; height: 100%; }
   .dot { position: absolute; top: 0; right: -2px; width: 10px; height: 10px; border-radius: 50%; background: var(--unifi-ok); border: 2px solid var(--card-background-color, #fff); }
-  .off .dot { background: var(--unifi-bad); }
+  /* nur der Punkt der eigenen Kachel: li.off enthält auch die (evtl. erreichbaren) untergeordneten Geräte */
+  .tile.off .dot { background: var(--unifi-bad); }
   .upd { position: absolute; bottom: -2px; right: -4px; width: 18px; height: 18px; border-radius: 50%; background: var(--unifi-warn); display: flex; align-items: center; justify-content: center; }
   .upd svg { width: 12px; height: 12px; stroke: var(--text-primary-color, #fff); }
   .name { font-size: .85em; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

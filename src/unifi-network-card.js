@@ -212,7 +212,6 @@ class UnifiNetworkCard extends HTMLElement {
     this._devRef = null;
     this._histKey = null;
     this._confirm = null;
-    this._badImg = new Set();
     this._update();
   }
 
@@ -704,7 +703,9 @@ class UnifiNetworkCard extends HTMLElement {
 
   _tile(d, locale, t, inGrid = false) {
     const url = this._imageUrl(d);
-    // Bilder, die sich nicht laden ließen, nicht erneut anfordern: gleich das Symbol zeigen
+    // Bilder, die sich nicht laden ließen, nicht erneut anfordern: gleich das Symbol zeigen. Die Liste gilt, bis die
+    // Seite neu geladen wird (auch über setConfig hinweg): Das Markup darf ein bereits fehlgeschlagenes <img> nicht
+    // wieder enthalten, sonst bliebe es beim Angleichen ohne neuen Ladeversuch und ohne Symbol stehen.
     const img = url && !this._badImg.has(url) ? url : null;
     const icon = `<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[d.type] || ICONS.other}</svg>`;
     const port = d.flow?.portText ? ` · ${esc(d.flow.portText)}` : "";
@@ -870,11 +871,8 @@ class UnifiNetworkCard extends HTMLElement {
       // Angleichen statt ersetzen: unveränderte Elemente bleiben bestehen (Fokus, Animationen, geladene Bilder)
       morphInto(card, content);
     } else {
-      this.shadowRoot.innerHTML = `
-      <style>${styles}</style>
-      <ha-card class="${cls}" data-d="${dens}" style="${esc(vars)}">
-        ${content}
-      </ha-card>`;
+      // Ohne Leerraum um den Inhalt: Die Kindknoten müssen denen entsprechen, die morphInto() später vergleicht
+      this.shadowRoot.innerHTML = `<style>${styles}</style><ha-card class="${cls}" data-d="${dens}" style="${esc(vars)}">${content}</ha-card>`;
       card = this.shadowRoot.querySelector?.("ha-card");
     }
 
@@ -960,6 +958,7 @@ class UnifiNetworkCard extends HTMLElement {
       }
       // Neustart: erst nach Bestätigung wird button.press ausgelöst
       if ((el = pick(e, ".rs"))) {
+        e.stopPropagation();
         this._confirm = { entity: el.dataset.entity, name: el.dataset.name };
         return this._update();
       }

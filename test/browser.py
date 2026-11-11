@@ -208,6 +208,72 @@ async () => {
     check('Fehlendes Bild wird bei späteren Werten nicht erneut angefordert', (!img || img.hidden) && !!q(card, '.tile[data-id="ap1"] .fb:not([hidden])') && text(q(card, '.tile[data-id="ap1"] .cl')) === '10');
   }
 
+  {
+    const cfg = window.baseConfig();
+    cfg.devices[2] = {device: 'ap1', switch_port: 1, image: 'http://127.0.0.1:9/gibt-es-nicht.png'};
+    const {card} = fixture({config: cfg});
+    await turn(500);
+    card.setConfig({...cfg, title: 'Neu'});
+    await turn(300);
+    const img = q(card, '.tile[data-id="ap1"] .img img');
+    check('Fehlendes Bild: nach geänderter Einstellung weiter das Symbol, kein leeres Bild', (!img || img.hidden) && !!q(card, '.tile[data-id="ap1"] .fb:not([hidden])'));
+  }
+
+  // ---- Angleichen ergibt dasselbe wie ein frischer Aufbau ----
+  {
+    const steps = [
+      (set) => set({'sensor.sw_port_1_rx': '77', 'sensor.ap1_clients': '2'}),
+      (set) => set({'device_tracker.sw': 'not_home'}),
+      (set, card) => tile(card, 'ap2').click(),
+      (set) => set({'sensor.sw_port_2_poe_power': null, 'sensor.wan_up': '0'}),
+      (set, card) => q(card, '.dlg [data-act="cancel"]')?.click(),
+      (set) => set({'device_tracker.sw': 'home', 'sensor.ap2_clients': null}),
+      (set, card) => card.setConfig({...window.baseConfig(), layout: 'grid'}),
+      (set) => set({'sensor.ping_cf': 'unavailable'}),
+      (set, card) => card.setConfig({...window.baseConfig(), show_legend: false, density: 'compact'}),
+      (set) => set({'sensor.sw_port_5_rx': '0', 'sensor.sw_port_5_tx': '0'}),
+    ];
+    const snap = (card) => { const c = q(card, 'ha-card').cloneNode(true); c.removeAttribute('data-d'); return c.innerHTML.replace(/\s+/g, ' '); };
+    const a = fixture({width: 800}), w = document.getElementById('w');
+    const box = document.createElement('div'); box.style.width = '800px'; document.body.appendChild(box);
+    let same = true, at = -1;
+    await turn(50);
+    for (let i = 0; i < steps.length && same; i++) {
+      steps[i](a.set, a.card);
+      await turn(30);
+      // Vergleichskarte mit demselben Endzustand frisch aufbauen
+      const fresh = document.createElement('unifi-network-card');
+      fresh.setConfig(a.card._config);
+      fresh._confirm = a.card._confirm;
+      box.replaceChildren(fresh);
+      fresh._hist = a.card._hist; fresh._histVer = a.card._histVer; fresh._histKey = a.card._histKey; fresh._histAt = a.card._histAt;
+      fresh.hass = a.card._hass;
+      await turn(30);
+      if (snap(a.card) !== snap(fresh)) { same = false; at = i; }
+    }
+    box.remove();
+    check('Angeglichene Card entspricht nach jedem Schritt einer frisch aufgebauten' + (same ? '' : ' (Abweichung in Schritt ' + at + ')'), same);
+  }
+  {
+    const w = document.getElementById('w');
+    w.replaceChildren();
+    const net = window.network(), early = document.createElement('unifi-network-card');
+    const mk = () => ({...net, language: 'de', locale: {language: 'de'}, callService() {}});
+    w.appendChild(early);
+    early.hass = mk();
+    early.setConfig(window.baseConfig());
+    await turn(30);
+    const t0 = tile(early, 'ap1');
+    net.states = {...net.states, 'sensor.ap1_clients': {...net.states['sensor.ap1_clients'], state: '4'}};
+    early.hass = mk();
+    check('Werte vor der Einstellung gesetzt: die erste Aktualisierung baut nicht neu auf', tile(early, 'ap1') === t0 && text(q(early, '.tile[data-id="ap1"] .cl')) === '4');
+    const off = fixture();
+    await turn(30);
+    off.set({'device_tracker.sw': 'not_home'});
+    const dot = (id) => getComputedStyle(q(off.card, `.tile[data-id="${id}"] .dot`)).backgroundColor;
+    check('Offline-Switch: nur sein eigener Punkt wird rot, erreichbare Geräte dahinter bleiben grün', dot('sw') !== dot('ap1') && dot('ap1') === dot('gw'));
+  }
+
   // ---- HTML-Injection: erster Aufbau und Angleichen ----
   {
     const cfg = window.baseConfig();
