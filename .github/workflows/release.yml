@@ -71,8 +71,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 22
-
+          node-version: 24
       # Der Release-Text kommt aus der CHANGELOG.md (Abschnitt "## x.y.z"), nicht aus einem automatischen Diff-Link.
       # Fehlt der Abschnitt, bricht der Release hier ab, bevor etwas veröffentlicht wird.
       - name: Release-Text aus dem Changelog
