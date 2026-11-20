@@ -2,6 +2,10 @@
 
 Alle sichtbaren Änderungen an der UniFi Card. Neueste Version oben.
 
+## 1.3.1 – 2026-11-20
+
+- Maintenance: test and build tools updated, no functional changes. / Wartung: Test- und Build-Werkzeuge aktualisiert, keine Änderungen an der Funktion.
+
 ## 1.3.0 – 2026-11-11
 
 - New look in line with the NAS, Eaton UPS and TouchKio cards: header with icon and larger title, "online" as a status pill (green, orange when a device is missing), device tiles and history tiles with the shared fill and border, "Internet" and "Ping" with a divider line. The topology, the flows and all values are unchanged. / Neues Aussehen passend zu NAS-, Eaton-UPS- und TouchKio-Card: Kopf mit Symbol und größerem Titel, „Online" als Status-Pill (grün, orange wenn ein Gerät fehlt), Gerätekacheln und Verlaufsfelder mit gemeinsamer Füllung und Rahmen, „Internet" und „Ping" mit Trennlinie. Topologie, Flüsse und alle Werte bleiben unverändert.
